@@ -105,49 +105,78 @@ export default function IndustrialVaultGame() {
     }
   };
 
-  // Polling Real-time State
+ // ระบบตรวจจับสถานะห้องแบบ Sequential Polling ป้องกันอาการค้างและ Request ชนกัน
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
-    const fetchRoom = async () => {
+    let isMounted = true;
+    let timeoutId: any = null;
+
+    const pollRoom = async () => {
       try {
-        const res = await fetch(`/api/room?roomId=${roomId}`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const res = await fetch(`/api/room?roomId=${roomId}&_t=${Date.now()}`, {
+          cache: "no-store",
+        });
 
-        setGameStatus(data.status);
-        setDefuserJoined(Boolean(data.defuserJoined));
+        if (res.ok && isMounted) {
+          const data = await res.json();
 
-        if (data.status === "PLAYING") {
-          setDefuserKey(data.secretKey);
-          setCipherHex(data.cipherHex);
+          setGameStatus(data.status);
+          setDefuserJoined(Boolean(data.defuserJoined));
 
-          if (data.cipherHex && cipherBytes.length === 0) {
-            const cBytes: number[][] = [];
-            for (let i = 0; i < data.cipherHex.length; i += 2) {
-              const val = parseInt(data.cipherHex.substr(i, 2), 16);
-              cBytes.push(val.toString(2).padStart(8, "0").split("").map(Number));
+          if (data.status === "PLAYING") {
+            setDefuserKey(data.secretKey);
+            setCipherHex(data.cipherHex);
+
+            // เซ็ตบิตเฉพาะครั้งแรกที่ได้รับข้อมูล
+            setCipherBytes((prev) => {
+              if (prev.length === 0 && data.cipherHex) {
+                const cBytes: number[][] = [];
+                for (let i = 0; i < data.cipherHex.length; i += 2) {
+                  const val = parseInt(data.cipherHex.substr(i, 2), 16);
+                  cBytes.push(val.toString(2).padStart(8, "0").split("").map(Number));
+                }
+                // อัปเดต userBits เริ่มต้น
+                setUserBits(cBytes.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
+                return cBytes;
+              }
+              return prev;
+            });
+
+            setKeyBytes((prev) => {
+              if (prev.length === 0 && data.secretKey) {
+                return data.secretKey.split("").map((c: string) => toAsciiBinArray(c));
+              }
+              return prev;
+            });
+
+            // คำนวณเวลาที่เหลือ
+            const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
+            const remain = Math.max(0, data.timeLimit - elapsed);
+            setTimeLeft(remain);
+
+            if (remain === 0 && data.status === "PLAYING") {
+              triggerExplode();
             }
-            setCipherBytes(cBytes);
-
-            const kBytes = data.secretKey.split("").map((c: string) => toAsciiBinArray(c));
-            setKeyBytes(kBytes);
-
-            setUserBits(cBytes.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
-          }
-
-          const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
-          const remain = Math.max(0, data.timeLimit - elapsed);
-          setTimeLeft(remain);
-
-          if (remain === 0 && data.status === "PLAYING") {
-            triggerExplode();
           }
         }
       } catch (err) {
-        console.error("Poll error", err);
+        console.error("Polling error:", err);
+      } finally {
+        // รอ 1 วินาทีหลังจาก Request ก่อนหน้าเสร็จสิ้น ค่อยส่ง Request ถัดไป (ไม่ค้างแน่นอน)
+        if (isMounted) {
+          timeoutId = setTimeout(pollRoom, 1000);
+        }
       }
     };
+
+    pollRoom();
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [roomId, role]);
 
     fetchRoom();
     pollInterval.current = setInterval(fetchRoom, 1000);
