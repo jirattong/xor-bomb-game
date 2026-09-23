@@ -32,7 +32,7 @@ export default function BombWorkshopApp() {
   const [cipherBytes, setCipherBytes] = useState<number[][]>([]);
   const [keyBytes, setKeyBytes] = useState<number[][]>([]);
   
-  // สถานะบิตที่น้องกำลังกดเลือก (เช่น คำ 3 ตัวอักษร = 3 แถว แถวละ 8 บิต)
+  // สถานะบิตที่เลือก
   const [activeCharIndex, setActiveCharIndex] = useState(0);
   const [userBits, setUserBits] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
 
@@ -121,7 +121,6 @@ export default function BombWorkshopApp() {
           setDefuserKey(data.secretKey);
           setCipherHex(data.cipherHex);
 
-          // แปลง Hex และ Key ออกมาเป็นอาเรย์ของบิตสำหรับการเล่น
           if (data.cipherHex && cipherBytes.length === 0) {
             const cBytes: number[][] = [];
             for (let i = 0; i < data.cipherHex.length; i += 2) {
@@ -133,7 +132,6 @@ export default function BombWorkshopApp() {
             const kBytes = data.secretKey.split("").map((c: string) => toAsciiBinArray(c));
             setKeyBytes(kBytes);
 
-            // เซ็ตบิตเริ่มต้นให้เป็น 0 ทั้งหมดตามจำนวนตัวอักษร
             setUserBits(cBytes.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
           }
 
@@ -214,30 +212,25 @@ export default function BombWorkshopApp() {
   };
 
   // =========================================================================
-  // 1. หน้าจอ MENU: สไตล์แฟ้มเอกสารลับสีน้ำตาล + แผ่นกระดาษพิมพ์ดีด (ตามรูปต้นแบบ)
+  // 1. หน้าจอ MENU
   // =========================================================================
   if (role === "MENU") {
     return (
       <main className="min-h-screen p-4 sm:p-8 flex items-center justify-center bg-[#1a212d]">
         <div className="folder-cover p-4 sm:p-10 max-w-2xl w-full relative">
-          
-          {/* คลิปหนีบกระดาษด้านบน[cite: 7] */}
           <div className="absolute top-2 right-16 w-6 h-14 border-4 border-slate-400 rounded-full z-20 pointer-events-none opacity-80" />
 
-          {/* แผ่นกระดาษขาว[cite: 6, 7] */}
           <div className="folder-paper p-6 sm:p-10 rounded-sm text-slate-800 border-l-4 border-amber-800/20">
             <div className="border-b-2 border-dashed border-slate-400 pb-4 mb-6 text-center">
               <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-slate-900 mb-1">
                 TOP SECRET : XOR PROJECT
               </h1>
               <p className="text-xs uppercase tracking-widest text-slate-500 font-sans">
-                คู่มือภารกิจกู้ระเบิดคอมพิวเตอร์ระดับมัธยมศึกษา[cite: 7]
+                คู่มือภารกิจกู้ระเบิดคอมพิวเตอร์ระดับมัธยมศึกษา
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-6 font-sans">
-              
-              {/* ช่องทางที่ 1: ผู้ตั้งโจทย์[cite: 6] */}
               <div className="bg-amber-50/80 p-5 rounded border border-amber-300 flex flex-col justify-between shadow-sm">
                 <div>
                   <span className="text-[11px] font-bold text-red-600 tracking-wider uppercase block mb-1">
@@ -252,11 +245,10 @@ export default function BombWorkshopApp() {
                   onClick={() => setRole("OPERATOR_SETUP")}
                   className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded shadow active:scale-95 transition text-sm tracking-wider uppercase"
                 >
-                  + สร้างภารกิจใหม่[cite: 6]
+                  + สร้างภารกิจใหม่
                 </button>
               </div>
 
-              {/* ช่องทางที่ 2: ผู้กู้ระเบิด[cite: 6] */}
               <div className="bg-blue-50/80 p-5 rounded border border-blue-300 flex flex-col justify-between shadow-sm">
                 <div>
                   <span className="text-[11px] font-bold text-blue-600 tracking-wider uppercase block mb-1">
@@ -282,11 +274,10 @@ export default function BombWorkshopApp() {
                   เข้าสู่ห้องกู้ระเบิด
                 </button>
               </div>
-
             </div>
 
             <div className="text-[11px] text-slate-500 text-center font-mono mt-4 pt-4 border-t border-slate-300">
-              CLASSIFIED WORKSHOP MATERIAL — ห้ามเผยแพร่คำตอบก่อนเริ่มภารกิจ[cite: 6]
+              CLASSIFIED WORKSHOP MATERIAL — ห้ามเผยแพร่คำตอบก่อนเริ่มภารกิจ
             </div>
           </div>
         </div>
@@ -295,7 +286,7 @@ export default function BombWorkshopApp() {
   }
 
   // =========================================================================
-  // 2. หน้าจอตั้งค่ารหัสลับ (OPERATOR SETUP)
+  // 2. หน้าจอ OPERATOR SETUP
   // =========================================================================
   if (role === "OPERATOR_SETUP") {
     return (
@@ -369,7 +360,7 @@ export default function BombWorkshopApp() {
   }
 
   // =========================================================================
-  // 3. หน้าจอ LOBBY ฝั่งผู้ตั้งรหัส
+  // 3. หน้าจอ OPERATOR LOBBY
   // =========================================================================
   if (role === "OPERATOR_LOBBY") {
     return (
@@ -414,7 +405,7 @@ export default function BombWorkshopApp() {
 
             {gameStatus === "DEFUSED" && (
               <div className="mt-4 p-3 bg-emerald-600 text-white font-bold rounded">
-                ภารกิจสำเร็จ! อีกฝั่งกู้ระเบิดได้ถูกต้อง[cite: 6]
+                ภารกิจสำเร็จ! อีกฝั่งกู้ระเบิดได้ถูกต้อง
               </div>
             )}
 
@@ -430,11 +421,10 @@ export default function BombWorkshopApp() {
   }
 
   // =========================================================================
-  // 4. หน้าจอ DEFUSER : เคสระเบิดการ์ตูน KTaNE โมเดิร์น + แผง XOR Terminal สลับบิต[cite: 8, 9]
+  // 4. หน้าจอ DEFUSER : เคสระเบิดการ์ตูน KTaNE โมเดิร์น
   // =========================================================================
   return (
     <main className="min-h-screen p-3 sm:p-6 flex flex-col items-center justify-center bg-[#151a22]">
-      {/* ส่วนหัว */}
       <div className="w-full max-w-4xl flex justify-between items-center mb-3 px-2 text-slate-300">
         <div className="text-sm font-semibold tracking-wider">
           DEFUSAL ROOM: <span className="text-cyan-400 font-mono text-lg font-bold">{roomId}</span>
@@ -443,7 +433,7 @@ export default function BombWorkshopApp() {
           onClick={() => { setRoomId(""); setRole("MENU"); }}
           className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 px-3 rounded"
         >
-          กลับหน้าหลัก[cite: 5]
+          กลับหน้าหลัก
         </button>
       </div>
 
@@ -454,16 +444,15 @@ export default function BombWorkshopApp() {
           <p className="text-slate-600 text-sm">กำลังรอให้ผู้ตั้งรหัสกดยืนยันเริ่มปล่อยสัญญาณ...</p>
         </div>
       ) : (
-        /* เคสระเบิดการ์ตูนสีฟ้าสดใส 3D-Look */
         <div className="cartoon-bomb-casing p-4 sm:p-7 max-w-4xl w-full">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            {/* โมดูลที่ 1: นาฬิกาดิจิทัล KTaNE 7-Segment */}
+            {/* โมดูลที่ 1: Timer */}
             <div className="cartoon-module p-4 flex flex-col items-center justify-center min-h-[150px]">
               <div className="cartoon-bolt absolute top-2 left-2" />
               <div className="cartoon-bolt absolute top-2 right-2" />
               <span className="text-[10px] font-bold text-slate-600 tracking-widest uppercase mb-1">
-                DETONATION COUNTDOWN[cite: 5]
+                DETONATION COUNTDOWN
               </span>
               <div className="ktane-timer-screen text-5xl sm:text-6xl font-black px-6 py-2 tracking-widest my-auto">
                 {formatTimer(timeLeft)}
@@ -474,42 +463,41 @@ export default function BombWorkshopApp() {
                   gameStatus === "PLAYING" ? "text-amber-600" :
                   gameStatus === "DEFUSED" ? "text-emerald-600" : "text-red-600"
                 }`}>
-                  {gameStatus}[cite: 5]
+                  {gameStatus}
                 </span>
               </div>
             </div>
 
-            {/* โมดูลที่ 2: สัญญาณความถี่ Cipher Hex และ Key[cite: 8] */}
+            {/* โมดูลที่ 2: Radio Receiver */}
             <div className="cartoon-module p-4 flex flex-col justify-between">
               <div className="cartoon-bolt absolute top-2 left-2" />
               <div className="cartoon-bolt absolute top-2 right-2" />
               
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                  RADIO RECEIVER[cite: 8]
+                  RADIO RECEIVER
                 </span>
-                {/* หลอดแก้วสัญญาณนีออนสีส้ม[cite: 8] */}
                 <div className="w-10 h-3 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full border border-amber-800 shadow-[0_0_8px_#f59e0b] animate-pulse" />
               </div>
 
               <div className="bg-slate-900 border-2 border-slate-700 rounded-lg p-2.5 my-auto text-center">
-                <div className="text-[10px] text-slate-400 uppercase">INTERCEPTED CIPHER (HEX)[cite: 5]</div>
+                <div className="text-[10px] text-slate-400 uppercase">INTERCEPTED CIPHER (HEX)</div>
                 <div className="text-2xl font-mono font-black text-amber-400 tracking-widest">
                   {cipherHex || "--"}
                 </div>
-                <div className="text-[10px] text-slate-400 uppercase mt-1">GIVEN SECRET KEY[cite: 5]</div>
+                <div className="text-[10px] text-slate-400 uppercase mt-1">GIVEN SECRET KEY</div>
                 <div className="text-xl font-mono font-black text-cyan-400 tracking-widest">
                   {defuserKey || "----"}
                 </div>
               </div>
             </div>
 
-            {/* โมดูลที่ 3: ตาราง Logic Wire XOR Matrix สรุปสั้นๆ[cite: 5] */}
+            {/* โมดูลที่ 3: Logic Wire */}
             <div className="cartoon-module p-4 flex flex-col justify-between">
               <div className="cartoon-bolt absolute top-2 left-2" />
               <div className="cartoon-bolt absolute top-2 right-2" />
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                XOR LOGIC GATE MATRIX[cite: 5]
+                XOR LOGIC GATE MATRIX
               </span>
               <div className="bg-slate-800 text-slate-200 p-2.5 rounded-lg border-2 border-slate-600 text-xs font-mono space-y-1">
                 <div className="flex justify-between"><span>0 ⊕ 0 =</span><span className="text-cyan-400 font-bold">0</span></div>
@@ -518,18 +506,15 @@ export default function BombWorkshopApp() {
                 <div className="flex justify-between"><span>1 ⊕ 1 =</span><span className="text-cyan-400 font-bold">0</span></div>
               </div>
               <div className="text-[10px] text-slate-600 text-center font-bold">
-                Output Bit = CipherBit ⊕ KeyBit[cite: 5]
+                Output Bit = CipherBit ⊕ KeyBit
               </div>
             </div>
 
-            {/* =====================================================================
-                โมดูลที่ 4: INTERACTIVE XOR BIT TERMINAL (ตามภาพ Mission 10/10)
-                ===================================================================== */}
+            {/* โมดูลที่ 4: INTERACTIVE XOR BIT TERMINAL */}
             <div className="cartoon-module md:col-span-3 p-5 bg-[#0f1723] text-white">
               <div className="cartoon-bolt absolute top-2 left-2" />
               <div className="cartoon-bolt absolute top-2 right-2" />
 
-              {/* แท็บเลือกตัวอักษรที่จะถอดรหัส */}
               <div className="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">CHAR SELECT:</span>
@@ -555,38 +540,33 @@ export default function BombWorkshopApp() {
                 </div>
               </div>
 
-              {/* กระดานเทียบ Bit แบบ Graphic (ตามรูปแนวคิด Mission 10/10) */}
               <div className="flex flex-col items-center justify-center gap-2 my-3">
-                
-                {/* Input A: Cipher Bits[cite: 9] */}
                 <div className="text-center w-full max-w-md">
                   <span className="text-[10px] text-slate-400 font-mono tracking-widest block uppercase mb-1">
-                    INPUT A (CIPHER BITS)[cite: 9]
+                    INPUT A (CIPHER BITS)
                   </span>
                   <div className="bg-[#101b2b] border border-cyan-800 text-cyan-300 font-mono text-xl py-2 px-4 rounded tracking-[0.3em] font-black shadow-inner">
                     {cipherBytes[activeCharIndex]?.join("") || "00000000"}
                   </div>
                 </div>
 
-                {/* ประตูตรรกะ XOR Icon[cite: 9] */}
                 <div className="my-1 bg-[#1a2332] border border-purple-500/50 text-purple-300 font-mono text-xs font-bold px-4 py-1 rounded-full shadow-[0_0_12px_rgba(168,85,247,0.4)]">
-                  ↓ XOR GATE ↓[cite: 9]
+                  ↓ XOR GATE ↓
                 </div>
 
-                {/* Input B: Key Bits[cite: 9] */}
+                {/* จุดที่แก้ Error: ใช้ JavaScript string quotes ธรรมดาใน JSX */}
                 <div className="text-center w-full max-w-md">
                   <span className="text-[10px] text-slate-400 font-mono tracking-widest block uppercase mb-1">
-                    INPUT B (KEY BITS: &apos;{defuserKey[activeCharIndex] || &quot;?&quot;}&apos;)[cite: 9]
+                    {`INPUT B (KEY BITS: '${defuserKey[activeCharIndex] || "?"}')`}
                   </span>
                   <div className="bg-[#101b2b] border border-cyan-800 text-cyan-300 font-mono text-xl py-2 px-4 rounded tracking-[0.3em] font-black shadow-inner">
                     {keyBytes[activeCharIndex]?.join("") || "00000000"}
                   </div>
                 </div>
 
-                {/* Output Bits: บิตที่น้องสามารถกดสลับ 0 หรือ 1 ได้[cite: 9] */}
                 <div className="w-full text-center mt-3">
                   <span className="text-xs text-amber-400 font-bold block mb-2 animate-pulse">
-                    แตะบิตด้านล่างเพื่อเปลี่ยน OUTPUT (0 ⇄ 1)[cite: 9]
+                    แตะบิตด้านล่างเพื่อเปลี่ยน OUTPUT (0 ⇄ 1)
                   </span>
 
                   <div className="flex justify-center gap-1 sm:gap-3 flex-wrap">
@@ -603,10 +583,8 @@ export default function BombWorkshopApp() {
                     ))}
                   </div>
                 </div>
-
               </div>
 
-              {/* ปุ่มยื่นคำตอบ EXECUTE ปลดชนวน[cite: 9] */}
               <div className="mt-6 pt-4 border-t border-slate-800">
                 <button
                   onClick={handleExecuteDefuse}
@@ -617,14 +595,13 @@ export default function BombWorkshopApp() {
                       : "bg-slate-800 text-slate-600 cursor-not-allowed"
                   }`}
                 >
-                  ⚡ EXECUTE DEFUSE (ปลดชนวนระเบิด)[cite: 9]
+                  ⚡ EXECUTE DEFUSE (ปลดชนวนระเบิด)
                 </button>
               </div>
 
-              {/* ผลลัพธ์ชนะ/แพ้ */}
               {gameStatus === "DEFUSED" && (
                 <div className="mt-4 p-4 bg-emerald-500 text-slate-950 font-black text-center text-xl rounded-lg tracking-wider">
-                  MISSION SUCCESS! กู้ระเบิดสำเร็จ คำตอบคือ &quot;{currentDecodedWord}&quot;[cite: 6]
+                  {`MISSION SUCCESS! กู้ระเบิดสำเร็จ คำตอบคือ "${currentDecodedWord}"`}
                 </div>
               )}
               {gameStatus === "EXPLODED" && (
@@ -632,7 +609,6 @@ export default function BombWorkshopApp() {
                   MISSION FAILED! ระเบิดทำงาน ถอดรหัสผิดพลาดหรือหมดเวลา
                 </div>
               )}
-
             </div>
 
           </div>
