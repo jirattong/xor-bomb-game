@@ -18,7 +18,6 @@ const hexByteTo8Bits = (hexByte: string): number[] => {
   return val.toString(2).padStart(8, "0").split("").map(Number);
 };
 
-// ฟังก์ชันแปลง Matrix ของบิตเป็นข้อความ
 const decodeBitsToWord = (matrix: number[][]): string => {
   return matrix
     .map((byteArr) => {
@@ -37,10 +36,14 @@ export default function BombWorkshopGame() {
   const [targetWord, setTargetWord] = useState("CAT");
   const [secretKey, setSecretKey] = useState("BAT");
   const [timeLimit, setTimeLimit] = useState(120);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(120);
   const [gameStatus, setGameStatus] = useState<"LOBBY" | "PLAYING" | "DEFUSED" | "EXPLODED">("LOBBY");
   const [defuserJoined, setDefuserJoined] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // จุดเก็บเวลาเริ่มเกม เพื่อใช้คำนวณเวลาอิสระบนเครื่อง
+  const serverStartTimeRef = useRef<number | null>(null);
+  const serverTimeLimitRef = useRef<number>(120);
 
   // Defuser Gameplay (Bit Toggling)
   const [defuserKey, setDefuserKey] = useState("");
@@ -52,6 +55,7 @@ export default function BombWorkshopGame() {
   const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
   const [submittedWordResult, setSubmittedWordResult] = useState("");
 
+  // แสดงผลคำที่ถอดรหัสได้แบบ Real-time
   const currentDecodedWord = decodeBitsToWord(userBitsMatrix);
 
   // 1. ผู้ตั้งรหัสสร้างห้อง
@@ -75,7 +79,16 @@ export default function BombWorkshopGame() {
       const res = await fetch("/api/room", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "CREATE", roomId: newId }),
+        body: JSON.stringify({ 
+          action: "CREATE", 
+          roomId: newId,
+          data: {
+            targetWord: t,
+            secretKey: k,
+            cipherHex: hex,
+            timeLimit: Number(timeLimit) || 120
+          }
+        }),
       });
 
       if (res.ok) {
@@ -96,8 +109,10 @@ export default function BombWorkshopGame() {
 
   // 2. ผู้กู้ระเบิดจอยเข้าห้อง
   const handleJoinRoom = async () => {
-    if (!inputRoomId.trim()) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
-    const code = inputRoomId.trim().toUpperCase();
+    const code = inputRoomId.replace(/[^A-Za-z0-9]/g, "").trim().toUpperCase();
+    if (!code || code.length !== 4) {
+      return alert("กรุณาใส่รหัสห้อง 4 หลัก");
+    }
 
     try {
       const res = await fetch("/api/room", {
@@ -117,7 +132,26 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // Polling ตรวจสอบสถานะห้อง
+  // 3. ระบบนับเวลาอิสระบนเครื่องผู้เล่น (Smooth Local Timer ไม่ค้าง ไม่กระโดด)
+  useEffect(() => {
+    if (gameStatus !== "PLAYING") return;
+
+    const timer = setInterval(() => {
+      if (serverStartTimeRef.current) {
+        const elapsed = Math.floor((Date.now() - serverStartTimeRef.current) / 1000);
+        const remain = Math.max(0, serverTimeLimitRef.current - elapsed);
+        setTimeLeft(remain);
+
+        if (remain === 0) {
+          triggerExplode();
+        }
+      }
+    }, 250); // คำนวณความถี่สูงเพื่อให้เวลานิ่งและลื่นไหลที่สุด
+
+    return () => clearInterval(timer);
+  }, [gameStatus]);
+
+  // 4. Polling ตรวจสอบสถานะเกมจาก Server
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -140,6 +174,12 @@ export default function BombWorkshopGame() {
             setDefuserKey(data.secretKey);
             setCipherHex(data.cipherHex);
 
+            // อัปเดตจุดอ้างอิงเวลาของ Server ให้เครื่อง Client ใช้นับต่อเอง
+            if (data.startTime) {
+              serverStartTimeRef.current = data.startTime;
+              serverTimeLimitRef.current = data.timeLimit;
+            }
+
             if (data.cipherHex && cipherBitsMatrix.length === 0) {
               const hexStr = data.cipherHex;
               const cMatrix: number[][] = [];
@@ -153,14 +193,6 @@ export default function BombWorkshopGame() {
               setKeyBitsMatrix(kMatrix);
 
               setUserBitsMatrix(cMatrix.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
-            }
-
-            const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
-            const remain = Math.max(0, data.timeLimit - elapsed);
-            setTimeLeft(remain);
-
-            if (remain === 0 && data.status === "PLAYING") {
-              triggerExplode();
             }
           }
         }
@@ -181,7 +213,7 @@ export default function BombWorkshopGame() {
     };
   }, [roomId, role, cipherBitsMatrix.length]);
 
-  // ผู้ตั้งรหัสกดเริ่มนับเวลา
+  // ผู้ตั้งรหัสเริ่มนับถอยหลัง
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
 
@@ -215,12 +247,11 @@ export default function BombWorkshopGame() {
   const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
     
-    // แปลงชุดบิตทั้งหมดเป็นคำตอบที่แท้จริงสดๆ ในขณะที่กด
     const finalAnswer = decodeBitsToWord(userBitsMatrix).trim().toUpperCase();
     setSubmittedWordResult(finalAnswer);
 
     try {
-      const res = await fetch("/api/room", {
+      await fetch("/api/room", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -229,10 +260,6 @@ export default function BombWorkshopGame() {
           data: { answer: finalAnswer },
         }),
       });
-      const resData = await res.json();
-      if (!resData.isCorrect) {
-        console.warn(`ส่งคำว่า: ${resData.userAnswer} แต่คำที่ถูกคือ: ${resData.correctAnswer}`);
-      }
     } catch (e) {
       alert("เกิดข้อผิดพลาดในการส่งคำตอบ");
     }
@@ -505,7 +532,7 @@ export default function BombWorkshopGame() {
         ) : (
           <div className="space-y-4">
             
-            {/* โมดูลข้อมูลบน */}
+            {/* กล่องข้อมูลบน */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
@@ -559,6 +586,7 @@ export default function BombWorkshopGame() {
                   </div>
                 </div>
 
+                {/* การแสดงผลคำที่ถอดรหัสได้แบบ Real-time ตามที่คุณชอบ */}
                 <div className="text-sm font-bold">
                   คำที่ถอดรหัสได้ตอนนี้:{" "}
                   <span className="text-2xl font-mono text-emerald-400 font-black ml-1 bg-black px-2 py-0.5 rounded border border-emerald-500/50">
@@ -656,7 +684,7 @@ export default function BombWorkshopGame() {
               ✂️ CUT CIRCUIT / UNLOCK VAULT (ส่งคำตอบถอดรหัส)
             </button>
 
-            {/* แจ้งผลชนะ/แพ้ พร้อมแสดงคำตอบที่ระบบรับไป */}
+            {/* แจ้งผลชนะ/แพ้ */}
             {gameStatus === "DEFUSED" && (
               <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-lg">
                 ✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง (&quot;{submittedWordResult}&quot;)
