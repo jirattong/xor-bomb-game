@@ -1,90 +1,106 @@
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;800&family=VT323&family=Orbitron:wght@700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800;900&family=VT323&family=Chakra+Petch:wght@700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-ui: 'Chakra Petch', sans-serif;
+  --font-main: 'Kanit', sans-serif;
   --font-led: 'VT323', monospace;
-  --font-code: 'Orbitron', monospace;
+  --font-code: 'Chakra Petch', sans-serif;
 }
 
 body {
-  font-family: var(--font-ui);
-  background: radial-gradient(circle at 50% 30%, #17283c 0%, #080d14 100%);
+  font-family: var(--font-main);
+  background-color: #0f172a;
   min-height: 100vh;
   margin: 0;
-  color: #f1f5f9;
+  color: #f8fafc;
 }
 
-/* โต๊ะไม้รองเคสระเบิดสไตล์ KTaNE */
-.wooden-desk {
-  background: linear-gradient(180deg, #b07d56 0%, #875b38 40%, #5c3c20 100%);
-  box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.3);
+/* คอนเทนเนอร์ล็อคสัดส่วนจอมือถือ (Mobile Frame) */
+.mobile-shell {
+  width: 100%;
+  max-width: 440px;
+  min-height: 100vh;
+  margin: 0 auto;
+  background: #1e293b;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
 }
 
-/* กรอบเคสระเบิดเหล็กสีเงินขอบมน */
-.ktane-casing {
-  background: linear-gradient(145deg, #dbe4ec 0%, #9cb2c4 100%);
-  border: 12px solid #7c95a8;
-  border-radius: 24px;
-  box-shadow: 
-    0 25px 50px rgba(0,0,0,0.8),
-    inset 3px 3px 6px rgba(255,255,255,0.9),
-    inset -4px -4px 8px rgba(0,0,0,0.4);
-}
-
-/* ช่องโมดูลระเบิดแต่ละบล็อก */
-.ktane-module {
-  background: linear-gradient(180deg, #ecf2f7 0%, #d4e0eb 100%);
-  border: 4px solid #7c94a7;
-  border-radius: 12px;
-  box-shadow: 
-    inset 2px 2px 4px rgba(255,255,255,0.9),
-    inset -2px -2px 4px rgba(0,0,0,0.25),
-    2px 4px 8px rgba(0,0,0,0.2);
+/* ก้อนระเบิดไดนาไมต์สีแดงสดใสตามรูป */
+.dynamite-bundle {
+  background: repeating-linear-gradient(
+    90deg,
+    #dc2626,
+    #dc2626 45px,
+    #991b1b 46px,
+    #b91c1c 50px
+  );
+  border-radius: 20px;
+  border: 4px solid #450a0a;
+  box-shadow: inset 0 6px 12px rgba(255, 255, 255, 0.25), inset 0 -6px 12px rgba(0, 0, 0, 0.6);
   position: relative;
 }
 
-/* หมุดสลักมุมโมดูล */
-.bolt {
-  width: 10px;
-  height: 10px;
-  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #688296 70%);
-  border-radius: 50%;
-  border: 1px solid #4a6375;
+/* แถบรัดระเบิดสีดำ */
+.dynamite-strap {
+  position: absolute;
+  height: 16px;
+  left: 0;
+  right: 0;
+  background: #18181b;
+  border-top: 2px solid #3f3f46;
+  border-bottom: 2px solid #09090b;
 }
 
-/* จอ LED Digital 7-Segment */
-.digital-timer {
+/* กล่องโมดูลวงจรสีเทา/เหลืองสดใส */
+.circuit-module {
+  background: #334155;
+  border: 4px solid #64748b;
+  border-radius: 16px;
+  box-shadow: 0 8px 0 #1e293b, inset 0 2px 4px rgba(255, 255, 255, 0.2);
+}
+
+/* จอนาฬิกา LED สีแดงเรืองแสง */
+.led-screen {
   font-family: var(--font-led);
-  background: #080a0f;
-  color: #ff1e27;
-  text-shadow: 0 0 16px rgba(255, 30, 39, 0.9);
-  letter-spacing: 4px;
-  border: 4px solid #2e3540;
-  border-radius: 8px;
+  background: #020617;
+  color: #ef4444;
+  text-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
+  border: 3px solid #1e293b;
+  border-radius: 10px;
+  line-height: 1;
 }
 
-/* บล็อกบิต 0 และ 1 ที่กดสลับได้ */
-.bit-box {
+/* ปุ่มบิตขนาดใหญ่พิเศษสำหรับนิ้วมือถือ */
+.mobile-bit-btn {
   font-family: var(--font-code);
-  font-size: 1.5rem;
+  font-size: 2rem;
   font-weight: 900;
-  border-radius: 8px;
-  transition: all 0.1s ease;
+  width: 44px;
+  height: 60px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.08s ease, background-color 0.15s;
   user-select: none;
 }
-.bit-box-0 {
+.mobile-bit-btn:active {
+  transform: scale(0.92);
+}
+.mobile-bit-0 {
   background: #1e293b;
   color: #94a3b8;
-  border: 2px solid #475569;
+  border: 3px solid #475569;
+  box-shadow: 0 4px 0 #0f172a;
 }
-.bit-box-1 {
+.mobile-bit-1 {
   background: #0284c7;
   color: #ffffff;
-  border: 2px solid #38bdf8;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
-  transform: translateY(-2px);
+  border: 3px solid #38bdf8;
+  box-shadow: 0 4px 0 #0369a1, 0 0 15px rgba(56, 189, 248, 0.6);
 }

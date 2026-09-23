@@ -12,7 +12,7 @@ const toAsciiBinArray = (char: string): number[] => {
     .map(Number);
 };
 
-export default function BombDefusalGame() {
+export default function BombDefuseApp() {
   const [role, setRole] = useState<"MENU" | "OPERATOR_SETUP" | "OPERATOR_LOBBY" | "DEFUSER">("MENU");
   const [roomId, setRoomId] = useState("");
   const [inputRoomId, setInputRoomId] = useState("");
@@ -26,19 +26,18 @@ export default function BombDefusalGame() {
   const [defuserJoined, setDefuserJoined] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Defuser Gameplay (Interactive XOR Bit Switcher)
+  // Defuser Gameplay (Bit Toggling)
   const [defuserKey, setDefuserKey] = useState("");
   const [cipherHex, setCipherHex] = useState("");
   const [cipherBytes, setCipherBytes] = useState<number[][]>([]);
   const [keyBytes, setKeyBytes] = useState<number[][]>([]);
   
-  // สถานะบิตที่น้องกดเลือก
   const [activeCharIndex, setActiveCharIndex] = useState(0);
   const [userBits, setUserBits] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
 
   const pollInterval = useRef<any>(null);
 
-  // ถอดรหัสบิตเป็นตัวอักษร
+  // คำนวณคำศัพท์ที่ได้จากบิตปัจจุบัน
   const currentDecodedWord = userBits
     .map((byte) => {
       const code = parseInt(byte.join(""), 2);
@@ -46,7 +45,7 @@ export default function BombDefusalGame() {
     })
     .join("");
 
-  // 1. ผู้ตั้งรหัสกดสร้างห้อง (แก้บั๊ก CAT/BAT และช่องว่าง)
+  // 1. ผู้ตั้งรหัสบันทึกและสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
@@ -75,17 +74,15 @@ export default function BombDefusalGame() {
         setSecretKey(k);
         setCipherHex(hex);
         setRole("OPERATOR_LOBBY");
-      } else {
-        alert("ไม่สามารถสร้างห้องได้ กรุณาลองใหม่อีกครั้ง");
       }
     } catch {
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 2. ผู้กู้ระเบิดกดเข้าห้อง
+  // 2. ผู้กู้ระเบิดจอยเข้าห้อง
   const handleJoinRoom = async () => {
     if (!inputRoomId.trim()) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
     const code = inputRoomId.trim().toUpperCase();
@@ -101,14 +98,14 @@ export default function BombDefusalGame() {
         setRoomId(code);
         setRole("DEFUSER");
       } else {
-        alert("ไม่พบรหัสห้องนี้ (ตรวจสอบว่าฝั่งตั้งรหัสกดสร้างห้องหรือยัง)");
+        alert("ไม่พบรหัสห้องนี้ กรุณาตรวจสอบว่าผู้ตั้งรหัสกดสร้างห้องแล้วหรือยัง");
       }
     } catch {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ขัดข้อง");
+      alert("เชื่อมต่อขัดข้อง");
     }
   };
 
-  // Polling ข้อมูล Realtime จากเซิร์ฟเวอร์
+  // Polling ข้อมูล Realtime
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -157,7 +154,7 @@ export default function BombDefusalGame() {
     return () => clearInterval(pollInterval.current);
   }, [roomId, role, cipherBytes.length]);
 
-  // ผู้ตั้งรหัสกดเริ่มเกม
+  // ผู้ตั้งรหัสกดเริ่มจับเวลา
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
 
@@ -177,7 +174,7 @@ export default function BombDefusalGame() {
     });
   };
 
-  // แตะสลับบิต
+  // แตะสลับบิต (0 ⇄ 1)
   const toggleBit = (bitIndex: number) => {
     if (gameStatus !== "PLAYING") return;
     setUserBits((prev) => {
@@ -216,55 +213,58 @@ export default function BombDefusalGame() {
   };
 
   // =========================================================================
-  // 1. หน้าจอ MENU: ปุ่มใหญ่ชัดเจน เหมาะกับมือถือ
+  // 1. หน้าจอ MENU: ปุ่มใหญ่ สีสด ชัดเจน (Mobile First)
   // =========================================================================
   if (role === "MENU") {
     return (
-      <main className="min-h-screen p-4 flex items-center justify-center">
-        <div className="w-full max-w-md bg-slate-900/95 border-4 border-slate-600 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur">
-          <div className="text-center mb-6">
-            <h1 className="text-3xl sm:text-4xl font-black text-amber-400 tracking-wider mb-2">
-              BOMB DEFUSAL
-            </h1>
-            <div className="inline-block bg-sky-500/20 text-sky-300 font-mono text-xs px-3 py-1 rounded-full font-bold border border-sky-400/40">
-              XOR CIPHER MODULE WORKSHOP
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center p-3">
+        <div className="mobile-shell p-6 justify-between rounded-3xl border-4 border-slate-700 shadow-2xl">
+          <div className="text-center my-4">
+            <div className="inline-block bg-red-600 text-white font-black text-xs px-4 py-1 rounded-full uppercase tracking-widest mb-2 shadow-lg animate-pulse">
+              WORKSHOP GAME
             </div>
+            <h1 className="text-4xl font-black text-amber-400 tracking-wider">
+              BOMB DEFUSE
+            </h1>
+            <p className="text-sm font-semibold text-slate-400 mt-1">
+              ภารกิจถอดรหัสบิต XOR คู่หู
+            </p>
           </div>
 
-          <div className="space-y-6">
-            {/* กล่องผู้ตั้งรหัส */}
-            <div className="bg-slate-800/90 border-2 border-amber-500/50 rounded-2xl p-5 shadow">
-              <span className="text-xs font-black text-amber-400 uppercase tracking-widest block mb-1">
-                ฝ่ายที่ 1 : ผู้สร้างโจทย์
+          <div className="space-y-6 my-auto">
+            {/* โซนที่ 1: ผู้ตั้งรหัส */}
+            <div className="bg-slate-800 border-3 border-amber-500 rounded-2xl p-5 shadow-lg">
+              <span className="bg-amber-500 text-slate-950 font-black text-xs px-2.5 py-0.5 rounded-md uppercase">
+                หน้าที่ 1
               </span>
-              <h2 className="text-xl font-bold text-white mb-2">ตั้งค่าคำและเปิดห้อง</h2>
-              <p className="text-xs text-slate-300 mb-4">
-                พิมพ์คำศัพท์ภาษาอังกฤษ กุญแจลับ แล้วกดสร้างห้องเพื่อรอเพื่อน
+              <h2 className="text-xl font-black text-white mt-2">ผู้ตั้งรหัสลับ</h2>
+              <p className="text-xs text-slate-300 mt-1 mb-4">
+                ตั้งคำภาษาอังกฤษและคีย์ เพื่อสร้างห้องเล่นกับเพื่อน
               </p>
               <button
                 onClick={() => setRole("OPERATOR_SETUP")}
-                className="w-full h-14 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-lg rounded-xl shadow-lg active:scale-95 transition"
+                className="w-full h-14 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-lg rounded-xl shadow-lg active:scale-95 transition"
               >
                 + สร้างห้องใหม่
               </button>
             </div>
 
-            {/* กล่องผู้กู้ระเบิด */}
-            <div className="bg-slate-800/90 border-2 border-sky-500/50 rounded-2xl p-5 shadow">
-              <span className="text-xs font-black text-sky-400 uppercase tracking-widest block mb-1">
-                ฝ่ายที่ 2 : ผู้กู้ระเบิด
+            {/* โซนที่ 2: ผู้กู้ระเบิด */}
+            <div className="bg-slate-800 border-3 border-sky-500 rounded-2xl p-5 shadow-lg">
+              <span className="bg-sky-500 text-slate-950 font-black text-xs px-2.5 py-0.5 rounded-md uppercase">
+                หน้าที่ 2
               </span>
-              <h2 className="text-xl font-bold text-white mb-2">เข้าห้องกู้ระเบิด</h2>
-              <p className="text-xs text-slate-300 mb-3">
-                กรอกรหัส 4 หลักที่ได้จากเพื่อนเพื่อเข้าสู่โมดูลระเบิด
+              <h2 className="text-xl font-black text-white mt-2">ผู้ปลดชนวน</h2>
+              <p className="text-xs text-slate-300 mt-1 mb-3">
+                กรอกรหัส 4 หลักที่ได้จากคู่หูเพื่อเริ่มกู้ระเบิด
               </p>
               <input
                 type="text"
                 maxLength={4}
-                placeholder="รหัสห้อง 4 หลัก"
+                placeholder="รหัส 4 หลัก"
                 value={inputRoomId}
                 onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
-                className="w-full h-14 bg-slate-950 text-sky-300 font-mono text-3xl font-black text-center rounded-xl border-2 border-slate-600 mb-3 tracking-widest uppercase focus:border-sky-400 outline-none"
+                className="w-full h-14 bg-slate-950 text-sky-400 font-mono text-3xl font-black text-center rounded-xl border-2 border-slate-600 mb-3 tracking-widest focus:border-sky-400 outline-none uppercase"
               />
               <button
                 onClick={handleJoinRoom}
@@ -273,6 +273,10 @@ export default function BombDefusalGame() {
                 จอยเข้าห้องทันที
               </button>
             </div>
+          </div>
+
+          <div className="text-center text-xs text-slate-500 font-semibold py-2">
+            XOR BOMB DEFUSAL SYSTEM
           </div>
         </div>
       </main>
@@ -284,53 +288,53 @@ export default function BombDefusalGame() {
   // =========================================================================
   if (role === "OPERATOR_SETUP") {
     return (
-      <main className="min-h-screen p-4 flex items-center justify-center">
-        <div className="w-full max-w-lg bg-slate-900 border-4 border-slate-600 rounded-3xl p-6 sm:p-8 shadow-2xl">
-          <div className="flex justify-between items-center border-b border-slate-700 pb-3 mb-6">
-            <h2 className="text-2xl font-black text-white">⚙️ ตั้งค่ารหัสลับ</h2>
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center p-3">
+        <div className="mobile-shell p-6 justify-between rounded-3xl border-4 border-slate-700">
+          <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+            <h2 className="text-2xl font-black text-amber-400">⚙️ ตั้งค่าคำลับ</h2>
             <button
               onClick={() => setRole("MENU")}
-              className="text-xs text-slate-400 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-600"
+              className="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-600"
             >
               ย้อนกลับ
             </button>
           </div>
 
-          <div className="space-y-5 mb-8">
+          <div className="space-y-4 my-auto">
             <div>
-              <label className="block text-sm font-bold text-slate-200 mb-2">
-                1. คำศัพท์ลับที่ต้องการให้ทาย (3-4 ตัวอักษร):
+              <label className="block text-sm font-bold text-slate-200 mb-1">
+                1. คำศัพท์ลับที่ให้ทาย (3-4 ตัวอักษร):
               </label>
               <input
                 type="text"
                 maxLength={4}
                 value={targetWord}
                 onChange={(e) => setTargetWord(e.target.value.toUpperCase())}
-                className="w-full h-14 bg-slate-950 border-2 border-slate-600 rounded-xl text-3xl font-mono text-center tracking-widest font-black text-emerald-400 focus:border-emerald-500 outline-none uppercase"
+                className="w-full h-14 bg-slate-950 border-2 border-slate-600 rounded-xl text-3xl font-mono text-center tracking-widest font-black text-emerald-400 outline-none focus:border-emerald-500 uppercase"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-200 mb-2">
-                2. กุญแจ Key (ต้องยาวเท่าคำศัพท์):
+              <label className="block text-sm font-bold text-slate-200 mb-1">
+                2. กุญแจ Key (ยาวเท่าคำศัพท์):
               </label>
               <input
                 type="text"
                 maxLength={4}
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value.toUpperCase())}
-                className="w-full h-14 bg-slate-950 border-2 border-slate-600 rounded-xl text-3xl font-mono text-center tracking-widest font-black text-sky-400 focus:border-sky-500 outline-none uppercase"
+                className="w-full h-14 bg-slate-950 border-2 border-slate-600 rounded-xl text-3xl font-mono text-center tracking-widest font-black text-sky-400 outline-none focus:border-sky-500 uppercase"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-200 mb-2">
-                3. เวลาที่ให้กู้ระเบิด:
+              <label className="block text-sm font-bold text-slate-200 mb-1">
+                3. เวลานับถอยหลัง:
               </label>
               <select
                 value={timeLimit}
                 onChange={(e) => setTimeLimit(Number(e.target.value))}
-                className="w-full h-14 bg-slate-950 border-2 border-slate-600 rounded-xl px-4 text-xl font-bold text-white outline-none"
+                className="w-full h-14 bg-slate-950 border-2 border-slate-600 rounded-xl px-4 text-lg font-bold text-white outline-none"
               >
                 <option value={60}>60 วินาที (1 นาที)</option>
                 <option value={120}>120 วินาที (2 นาที)</option>
@@ -342,9 +346,9 @@ export default function BombDefusalGame() {
           <button
             onClick={handleSaveAndCreateRoom}
             disabled={isSubmitting}
-            className="w-full h-16 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xl rounded-xl shadow-xl active:scale-95 transition"
+            className="w-full h-16 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xl rounded-xl shadow-xl active:scale-95 transition"
           >
-            {isSubmitting ? "กำลังสร้างห้อง..." : "✓ บันทึกรหัสลับ และ สร้างห้อง"}
+            {isSubmitting ? "กำลังสร้างห้อง..." : "✓ บันทึก และ สร้างห้อง"}
           </button>
         </div>
       </main>
@@ -356,21 +360,36 @@ export default function BombDefusalGame() {
   // =========================================================================
   if (role === "OPERATOR_LOBBY") {
     return (
-      <main className="min-h-screen p-4 flex items-center justify-center">
-        <div className="w-full max-w-md bg-slate-900 border-4 border-slate-600 rounded-3xl p-6 sm:p-8 shadow-2xl text-center">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">
-            นำรหัสห้องนี้ให้อีกฝั่งกรอก
-          </span>
-          <div className="text-6xl font-black font-mono tracking-widest text-amber-400 my-4 bg-slate-950 py-3 rounded-2xl border-2 border-amber-500/50">
-            {roomId}
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center p-3">
+        <div className="mobile-shell p-6 justify-between rounded-3xl border-4 border-slate-700 text-center">
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">
+              รหัสห้องสำหรับเพื่อน
+            </span>
+            <div className="text-6xl font-black font-mono tracking-widest text-amber-400 my-2 bg-slate-950 py-3 rounded-2xl border-2 border-amber-500/50">
+              {roomId}
+            </div>
           </div>
 
-          <div className={`p-4 rounded-xl mb-6 text-sm font-bold border ${
-            defuserJoined 
-              ? "bg-emerald-950/80 border-emerald-500 text-emerald-300" 
-              : "bg-amber-950/80 border-amber-500 text-amber-300 animate-pulse"
-          }`}>
-            {defuserJoined ? "✓ คู่หูเชื่อมต่อเข้าห้องแล้ว!" : "⏳ รอให้อีกฝั่งใส่รหัสห้องเข้ามา..."}
+          <div className="my-auto">
+            <div className={`p-4 rounded-xl text-sm font-bold border mb-4 ${
+              defuserJoined 
+                ? "bg-emerald-950 border-emerald-500 text-emerald-300" 
+                : "bg-amber-950 border-amber-500 text-amber-300 animate-pulse"
+            }`}>
+              {defuserJoined ? "✓ คู่หูเชื่อมต่อเข้าสู่ห้องแล้ว!" : "⏳ กำลังรอคู่หูใส่รหัสห้องเข้ามา..."}
+            </div>
+
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 text-left space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-400">คำศัพท์ลับ:</span>
+                <span className="text-emerald-400 font-bold font-mono text-lg">{targetWord}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Secret Key:</span>
+                <span className="text-sky-400 font-bold font-mono text-lg">{secretKey}</span>
+              </div>
+            </div>
           </div>
 
           {gameStatus === "LOBBY" && (
@@ -383,27 +402,27 @@ export default function BombDefusalGame() {
                   : "bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700"
               }`}
             >
-              {defuserJoined ? "🚀 เริ่มนับเวลาถอยหลังทันที" : "รอผู้กู้ระเบิดเข้าห้องก่อน"}
+              {defuserJoined ? "🚀 เริ่มนับเวลาถอยหลังทันที" : "รอคู่หูเข้าห้องก่อน"}
             </button>
           )}
 
           {gameStatus === "PLAYING" && (
-            <div className="bg-slate-950 border-2 border-red-500 rounded-2xl p-5">
-              <span className="text-xs text-red-400 font-bold tracking-widest block mb-2">DETONATION TIMER</span>
-              <span className="text-6xl font-mono text-red-500 font-black tracking-widest">
+            <div className="bg-slate-950 border-2 border-red-500 rounded-2xl p-4">
+              <span className="text-xs text-red-400 font-bold block mb-1">DETONATION TIMER</span>
+              <span className="text-5xl font-mono text-red-500 font-black tracking-widest">
                 {formatTimer(timeLeft)}
               </span>
             </div>
           )}
 
           {gameStatus === "DEFUSED" && (
-            <div className="mt-4 p-4 bg-emerald-600 text-slate-950 font-black rounded-xl text-lg">
+            <div className="p-4 bg-emerald-600 text-slate-950 font-black rounded-xl text-lg">
               ✓ อีกฝั่งกู้ระเบิดสำเร็จ!
             </div>
           )}
 
           {gameStatus === "EXPLODED" && (
-            <div className="mt-4 p-4 bg-red-600 text-white font-black rounded-xl text-lg animate-bounce">
+            <div className="p-4 bg-red-600 text-white font-black rounded-xl text-lg animate-bounce">
               💥 ระเบิดทำงาน! อีกฝ่ายตอบผิดหรือหมดเวลา
             </div>
           )}
@@ -413,187 +432,162 @@ export default function BombDefusalGame() {
   }
 
   // =========================================================================
-  // 4. หน้าจอ DEFUSER : เคสระเบิด KTaNE สีสดใส วางบนโต๊ะไม้ (ตามรูปต้นแบบ)
+  // 4. หน้าจอ DEFUSER : ลูกระเบิดไดนาไมต์สีแดงสดใสตามรูปตัวอย่าง
   // =========================================================================
   return (
-    <main className="min-h-screen flex flex-col items-center justify-between p-2 sm:p-6 select-none">
-      {/* แถบหัวสถานะ */}
-      <div className="w-full max-w-4xl flex justify-between items-center py-2 px-4 bg-slate-900/80 border border-slate-700 rounded-xl mb-4 backdrop-blur">
-        <div className="text-sm font-bold text-slate-300">
-          ROOM: <span className="text-amber-400 font-mono text-xl ml-1">{roomId}</span>
+    <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-2">
+      <div className="mobile-shell p-3 sm:p-4 justify-between rounded-3xl border-4 border-slate-700">
+        
+        {/* หัวสถานะห้อง */}
+        <div className="flex justify-between items-center bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 mb-2">
+          <div className="text-xs font-bold text-slate-300">
+            ROOM: <span className="text-amber-400 font-mono text-base font-bold">{roomId}</span>
+          </div>
+          <button
+            onClick={() => { setRoomId(""); setRole("MENU"); }}
+            className="text-xs bg-slate-800 text-slate-200 px-2.5 py-1 rounded-lg border border-slate-600"
+          >
+            เมนูหลัก
+          </button>
         </div>
-        <button
-          onClick={() => { setRoomId(""); setRole("MENU"); }}
-          className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-3 rounded-lg border border-slate-600"
-        >
-          กลับหน้าหลัก
-        </button>
-      </div>
 
-      {gameStatus === "LOBBY" ? (
-        <div className="ktane-casing p-8 max-w-md w-full text-center text-slate-800 my-auto">
-          <div className="w-12 h-12 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <h2 className="text-2xl font-black mb-1">เชื่อมต่อเคสระเบิดแล้ว</h2>
-          <p className="text-slate-600 text-sm">กำลังรอให้ผู้ตั้งรหัสกดยืนยันเริ่มปล่อยสัญญาณ...</p>
-        </div>
-      ) : (
-        /* เคสระเบิด KTaNE สัดส่วน 2x3 Grid ตามภาพ[cite: 11] */
-        <div className="w-full max-w-4xl my-auto">
-          <div className="ktane-casing p-3 sm:p-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {gameStatus === "LOBBY" ? (
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 text-center my-auto">
+            <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <h2 className="text-xl font-black text-white mb-1">เชื่อมต่อแล้ว</h2>
+            <p className="text-slate-400 text-xs">กำลังรอให้ผู้ตั้งรหัสกดยืนยันเริ่มจับเวลา...</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 my-auto">
+            
+            {/* ก้อนแท่งไดนาไมต์สีแดงสดใส[cite: 12, 13] */}
+            <div className="dynamite-bundle p-4 flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="dynamite-strap top-2" />
+              <div className="dynamite-strap bottom-2" />
 
-              {/* ช่อง 1: นาฬิกา 7-Segment ดิจิทัล LED สีแดง[cite: 11] */}
-              <div className="ktane-module p-4 flex flex-col items-center justify-center min-h-[140px]">
-                <div className="bolt absolute top-2 left-2" />
-                <div className="bolt absolute top-2 right-2" />
-                <span className="text-[11px] font-bold text-slate-700 tracking-wider mb-1">DETONATION TIMER</span>
-                <div className="digital-timer text-5xl sm:text-6xl font-black px-6 py-2 tracking-widest my-auto">
-                  {formatTimer(timeLeft)}
+              {/* จอนาฬิกา LED 7-Segment ดิจิทัล */}
+              <div className="led-screen px-6 py-2 z-10 text-5xl font-black my-1">
+                {formatTimer(timeLeft)}
+              </div>
+
+              <div className="z-10 text-[11px] font-black uppercase text-amber-300 tracking-wider">
+                {gameStatus === "PLAYING" ? "⚡ BOMB ARMED" : gameStatus}
+              </div>
+            </div>
+
+            {/* กล่องโมดูลแสดงค่า Cipher Hex & Secret Key */}
+            <div className="circuit-module p-3">
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="bg-slate-900 border border-slate-700 rounded-lg p-2">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">CIPHER (HEX)</div>
+                  <div className="text-xl font-mono font-black text-amber-400">{cipherHex || "--"}</div>
                 </div>
-                <div className="flex gap-2 items-center mt-1">
-                  <span className="text-[10px] font-bold text-slate-500">STRIKE:</span>
-                  <div className={`w-3 h-3 rounded-full ${gameStatus === "EXPLODED" ? "bg-red-600 animate-ping" : "bg-slate-400"}`} />
-                  <div className={`w-3 h-3 rounded-full ${gameStatus === "DEFUSED" ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-slate-400"}`} />
+                <div className="bg-slate-900 border border-slate-700 rounded-lg p-2">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">GIVEN KEY</div>
+                  <div className="text-xl font-mono font-black text-sky-400">{defuserKey || "----"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* แผงฝึก XOR Terminal: เลือกตัวอักษร และแตะสลับบิต */}
+            <div className="circuit-module p-3 bg-slate-900">
+              
+              {/* แถบเลือกตัวอักษร */}
+              <div className="flex justify-between items-center border-b border-slate-700 pb-2 mb-2">
+                <div className="flex gap-1.5">
+                  {userBits.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveCharIndex(idx)}
+                      className={`h-8 px-3 rounded-lg text-xs font-mono font-black transition ${
+                        activeCharIndex === idx
+                          ? "bg-sky-500 text-slate-950 shadow-[0_0_10px_#38bdf8]"
+                          : "bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      ตัวที่ {idx + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="text-xs font-bold text-right">
+                  คำที่ได้: <span className="text-xl font-mono text-emerald-400 font-black ml-1">{currentDecodedWord}</span>
                 </div>
               </div>
 
-              {/* ช่อง 2: โมดูลรับสัญญาณ Cipher และ Key[cite: 11] */}
-              <div className="ktane-module p-4 flex flex-col justify-between min-h-[140px]">
-                <div className="bolt absolute top-2 left-2" />
-                <div className="bolt absolute top-2 right-2" />
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-bold text-slate-700 tracking-wider">RADIO RECEIVER</span>
-                  <div className="w-8 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse" />
+              {/* แสดงบิตเปรียบเทียบระหว่าง Cipher กับ Key */}
+              <div className="space-y-1.5 text-xs font-mono">
+                <div className="bg-slate-950 px-2 py-1.5 rounded flex justify-between items-center border border-slate-800">
+                  <span className="text-slate-400">Cipher บิต:</span>
+                  <span className="text-amber-400 font-bold tracking-widest text-sm">
+                    {cipherBytes[activeCharIndex]?.join("") || "00000000"}
+                  </span>
                 </div>
-                <div className="bg-slate-900 border-2 border-slate-700 rounded-lg p-2 text-center my-auto">
-                  <div className="text-[10px] text-slate-400">CIPHER (HEX): <span className="text-amber-400 font-mono text-lg font-bold ml-1">{cipherHex}</span></div>
-                  <div className="text-[10px] text-slate-400 mt-1">GIVEN KEY: <span className="text-sky-400 font-mono text-lg font-bold ml-1">{defuserKey}</span></div>
-                </div>
-              </div>
 
-              {/* ช่อง 3: โมดูลคู่มือกฎตรรกะ XOR[cite: 11] */}
-              <div className="ktane-module p-4 flex flex-col justify-between min-h-[140px]">
-                <div className="bolt absolute top-2 left-2" />
-                <div className="bolt absolute top-2 right-2" />
-                <span className="text-[11px] font-bold text-slate-700 tracking-wider">XOR TRUTH TABLE</span>
-                <div className="bg-slate-900 text-slate-200 p-2 rounded-lg text-xs font-mono grid grid-cols-2 gap-1 my-auto">
-                  <div>0 ⊕ 0 = <span className="text-sky-400 font-bold">0</span></div>
-                  <div>0 ⊕ 1 = <span className="text-amber-400 font-bold">1</span></div>
-                  <div>1 ⊕ 0 = <span className="text-amber-400 font-bold">1</span></div>
-                  <div>1 ⊕ 1 = <span className="text-sky-400 font-bold">0</span></div>
+                <div className="text-center text-[10px] text-purple-400 font-bold">
+                  ↓ XOR (เหมือนกันได้ 0, ต่างกันได้ 1) ↓
+                </div>
+
+                <div className="bg-slate-950 px-2 py-1.5 rounded flex justify-between items-center border border-slate-800">
+                  <span className="text-slate-400">Key &apos;{defuserKey[activeCharIndex] || "?"}&apos; บิต:</span>
+                  <span className="text-sky-400 font-bold tracking-widest text-sm">
+                    {keyBytes[activeCharIndex]?.join("") || "00000000"}
+                  </span>
                 </div>
               </div>
 
-              {/* ช่อง 4, 5, 6: แผง Interactive XOR Terminal สำหรับฝึกเทียบและแตะบิต[cite: 11] */}
-              <div className="ktane-module md:col-span-3 p-4 sm:p-6 bg-slate-950 text-white border-4 border-slate-700">
-                <div className="bolt absolute top-2 left-2" />
-                <div className="bolt absolute top-2 right-2" />
-
-                {/* แท็บเลือกตัวอักษร */}
-                <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 mb-4 gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400">เลือกตัวอักษร:</span>
-                    <div className="flex gap-1.5">
-                      {userBits.map((_, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setActiveCharIndex(idx)}
-                          className={`w-10 h-8 rounded-lg text-xs font-mono font-black transition ${
-                            activeCharIndex === idx
-                              ? "bg-sky-500 text-slate-950 shadow-[0_0_12px_#38bdf8]"
-                              : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                          }`}
-                        >
-                          {idx + 1}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="text-sm font-bold">
-                    คำที่ถอดรหัสได้: <span className="text-2xl font-mono text-emerald-400 font-black ml-1">{currentDecodedWord}</span>
-                  </div>
+              {/* ปุ่มบิต 8 ช่องขนาดใหญ่สำหรับนิ้วแตะบนมือถือ */}
+              <div className="mt-3 text-center">
+                <span className="text-xs font-bold text-amber-400 block mb-1.5 animate-pulse">
+                  แตะที่บล็อกบิตด้านล่างเพื่อเปลี่ยน (0 ⇄ 1)
+                </span>
+                <div className="grid grid-cols-4 gap-2 justify-items-center">
+                  {userBits[activeCharIndex]?.map((bit, bitIdx) => (
+                    <button
+                      key={bitIdx}
+                      onClick={() => toggleBit(bitIdx)}
+                      className={`mobile-bit-btn w-full ${bit === 1 ? "mobile-bit-1" : "mobile-bit-0"}`}
+                    >
+                      {bit}
+                    </button>
+                  ))}
                 </div>
-
-                {/* กระดานเทียบ Bit แบบ Graphic */}
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-xs font-bold text-slate-400 mb-1 sm:mb-0">INPUT A (Cipher Bit):</span>
-                    <div className="text-xl font-mono tracking-[0.25em] text-amber-400 font-black">
-                      {cipherBytes[activeCharIndex]?.join("") || "00000000"}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-center">
-                    <span className="bg-purple-900/60 border border-purple-500/50 text-purple-300 font-mono text-xs font-bold px-3 py-0.5 rounded-full">
-                      ↓ XOR กับ ↓
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-xs font-bold text-slate-400 mb-1 sm:mb-0">
-                      INPUT B (Key &apos;{defuserKey[activeCharIndex] || "?"}&apos; Bit):
-                    </span>
-                    <div className="text-xl font-mono tracking-[0.25em] text-sky-400 font-black">
-                      {keyBytes[activeCharIndex]?.join("") || "00000000"}
-                    </div>
-                  </div>
-
-                  {/* แผงบิตที่น้องแตะเปลี่ยนได้ */}
-                  <div className="text-center pt-2">
-                    <span className="text-xs font-bold text-sky-300 block mb-2">
-                      แตะที่ช่องบิตเพื่อสลับค่า (0 ⇄ 1)
-                    </span>
-                    <div className="flex justify-center gap-1.5 sm:gap-2.5 flex-wrap">
-                      {userBits[activeCharIndex]?.map((bit, bitIdx) => (
-                        <button
-                          key={bitIdx}
-                          onClick={() => toggleBit(bitIdx)}
-                          className={`w-10 h-14 sm:w-12 sm:h-16 bit-box ${
-                            bit === 1 ? "bit-box-1" : "bit-box-0"
-                          } cursor-pointer active:scale-95`}
-                        >
-                          {bit}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ปุ่มตัดวงจรปลดชนวน */}
-                <div className="mt-6 pt-4 border-t border-slate-800">
-                  <button
-                    onClick={handleExecuteDefuse}
-                    disabled={gameStatus !== "PLAYING"}
-                    className={`w-full h-16 rounded-xl font-black text-xl uppercase tracking-widest transition shadow-xl ${
-                      gameStatus === "PLAYING"
-                        ? "bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white cursor-pointer active:scale-95 shadow-red-600/40"
-                        : "bg-slate-800 text-slate-600 cursor-not-allowed"
-                    }`}
-                  >
-                    ⚡ CUT WIRE / DEFUSE (ปลดชนวนระเบิด)
-                  </button>
-                </div>
-
-                {gameStatus === "DEFUSED" && (
-                  <div className="mt-4 p-4 bg-emerald-500 text-slate-950 font-black text-center text-xl rounded-xl">
-                    ✓ BOMB DEFUSED! ปลดชนวนระเบิดสำเร็จ!
-                  </div>
-                )}
-                {gameStatus === "EXPLODED" && (
-                  <div className="mt-4 p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl animate-bounce">
-                    💥 BOOM! ระเบิดทำงาน ถอดรหัสผิดพลาดหรือหมดเวลา!
-                  </div>
-                )}
               </div>
 
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ฐานโต๊ะไม้ด้านล่างสไตล์ KTaNE[cite: 11] */}
-      <div className="wooden-desk w-full h-10 rounded-t-2xl mt-4 border-t-2 border-amber-300/30" />
+            {/* ปุ่มตัดวงจรปลดชนวนขนาดใหญ่ */}
+            <button
+              onClick={handleExecuteDefuse}
+              disabled={gameStatus !== "PLAYING"}
+              className={`w-full h-16 rounded-2xl font-black text-xl tracking-wider uppercase transition shadow-xl ${
+                gameStatus === "PLAYING"
+                  ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 hover:brightness-110 text-white cursor-pointer active:scale-95 shadow-red-600/40"
+                  : "bg-slate-800 text-slate-600 cursor-not-allowed"
+              }`}
+            >
+              ✂️ ตัดวงจรระเบิด (DEFUSE)
+            </button>
+
+            {/* แจ้งผลชนะ/แพ้ */}
+            {gameStatus === "DEFUSED" && (
+              <div className="p-3 bg-emerald-500 text-slate-950 font-black text-center text-lg rounded-xl shadow-lg">
+                ✓ BOMB DEFUSED! กู้ระเบิดสำเร็จ
+              </div>
+            )}
+            {gameStatus === "EXPLODED" && (
+              <div className="p-3 bg-red-600 text-white font-black text-center text-lg rounded-xl shadow-lg animate-bounce">
+                💥 BOOM! ระเบิดทำงาน ถอดรหัสผิดหรือเวลาหมด!
+              </div>
+            )}
+
+          </div>
+        )}
+
+        <div className="text-center text-[10px] text-slate-500 py-1">
+          สูตร: 0⊕0=0, 0⊕1=1, 1⊕0=1, 1⊕1=0
+        </div>
+      </div>
     </main>
   );
 }
