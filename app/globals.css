@@ -1,95 +1,90 @@
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700;900&family=Special+Elite&family=VT323&family=Orbitron:wght@700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;800&family=VT323&family=Orbitron:wght@700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-typewriter: 'Special Elite', cursive;
   --font-ui: 'Chakra Petch', sans-serif;
   --font-led: 'VT323', monospace;
-  --font-cyber: 'Orbitron', monospace;
+  --font-code: 'Orbitron', monospace;
 }
 
 body {
   font-family: var(--font-ui);
-  background-color: #1e2530;
+  background: radial-gradient(circle at 50% 30%, #17283c 0%, #080d14 100%);
   min-height: 100vh;
   margin: 0;
-  color: #1a202c;
+  color: #f1f5f9;
 }
 
-/* --- แฟ้มเอกสารสารบรรณ (Dossier Folder) --- */
-.folder-cover {
-  background-color: #d8c29d;
-  background-image: radial-gradient(#c7ad84 10%, transparent 11%);
-  background-size: 16px 16px;
-  box-shadow: 0 20px 45px rgba(0,0,0,0.6), inset 0 0 30px rgba(160, 130, 80, 0.4);
+/* โต๊ะไม้รองเคสระเบิดสไตล์ KTaNE */
+.wooden-desk {
+  background: linear-gradient(180deg, #b07d56 0%, #875b38 40%, #5c3c20 100%);
+  box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.3);
+}
+
+/* กรอบเคสระเบิดเหล็กสีเงินขอบมน */
+.ktane-casing {
+  background: linear-gradient(145deg, #dbe4ec 0%, #9cb2c4 100%);
+  border: 12px solid #7c95a8;
+  border-radius: 24px;
+  box-shadow: 
+    0 25px 50px rgba(0,0,0,0.8),
+    inset 3px 3px 6px rgba(255,255,255,0.9),
+    inset -4px -4px 8px rgba(0,0,0,0.4);
+}
+
+/* ช่องโมดูลระเบิดแต่ละบล็อก */
+.ktane-module {
+  background: linear-gradient(180deg, #ecf2f7 0%, #d4e0eb 100%);
+  border: 4px solid #7c94a7;
   border-radius: 12px;
-}
-
-.folder-paper {
-  background-color: #faf7f2;
-  box-shadow: 2px 5px 15px rgba(0,0,0,0.15), inset 0 0 40px rgba(0,0,0,0.02);
-  font-family: var(--font-typewriter);
-}
-
-/* --- กล่องเคสระเบิดการ์ตูน KTaNE สว่างสดใส --- */
-.cartoon-bomb-casing {
-  background: linear-gradient(145deg, #d3e0ea 0%, #b1c4d4 100%);
-  border: 10px solid #8ba4b8;
-  border-radius: 28px;
   box-shadow: 
-    0 20px 50px rgba(0,0,0,0.5),
-    inset 4px 4px 0px rgba(255,255,255,0.9),
-    inset -4px -4px 0px rgba(110, 135, 155, 0.8);
-}
-
-.cartoon-module {
-  background: linear-gradient(180deg, #e4ecf3 0%, #ccd8e4 100%);
-  border: 4px solid #8ca2b5;
-  border-radius: 16px;
-  box-shadow: 
-    inset 2px 2px 0px #ffffff,
-    inset -2px -2px 0px #97adbf,
-    0 4px 6px rgba(0,0,0,0.15);
+    inset 2px 2px 4px rgba(255,255,255,0.9),
+    inset -2px -2px 4px rgba(0,0,0,0.25),
+    2px 4px 8px rgba(0,0,0,0.2);
   position: relative;
 }
 
-/* หมุดสลักเกลียวการ์ตูน */
-.cartoon-bolt {
-  width: 12px;
-  height: 12px;
-  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #8ca2b5 70%);
+/* หมุดสลักมุมโมดูล */
+.bolt {
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #688296 70%);
   border-radius: 50%;
-  border: 1.5px solid #5a7388;
-  box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+  border: 1px solid #4a6375;
 }
 
-/* หน้าปัด 7-Segment */
-.ktane-timer-screen {
+/* จอ LED Digital 7-Segment */
+.digital-timer {
   font-family: var(--font-led);
-  background: #0d0f14;
-  color: #ff2233;
-  text-shadow: 0 0 14px rgba(255, 34, 51, 0.85);
-  border: 4px solid #3c4450;
-  border-radius: 10px;
-}
-
-/* แผงบิต Interactive Switch */
-.bit-toggle-btn {
-  font-family: var(--font-cyber);
-  background: #0b1524;
-  border: 2px solid #00f0ff;
+  background: #080a0f;
+  color: #ff1e27;
+  text-shadow: 0 0 16px rgba(255, 30, 39, 0.9);
+  letter-spacing: 4px;
+  border: 4px solid #2e3540;
   border-radius: 8px;
-  color: #00f0ff;
-  transition: all 0.15s ease-in-out;
-  box-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
 }
 
-.bit-toggle-btn.active {
-  background: #00f0ff;
-  color: #040911;
-  box-shadow: 0 0 16px rgba(0, 240, 255, 0.8);
+/* บล็อกบิต 0 และ 1 ที่กดสลับได้ */
+.bit-box {
+  font-family: var(--font-code);
+  font-size: 1.5rem;
+  font-weight: 900;
+  border-radius: 8px;
+  transition: all 0.1s ease;
+  user-select: none;
+}
+.bit-box-0 {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 2px solid #475569;
+}
+.bit-box-1 {
+  background: #0284c7;
+  color: #ffffff;
+  border: 2px solid #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
   transform: translateY(-2px);
 }
