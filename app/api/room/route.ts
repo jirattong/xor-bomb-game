@@ -18,10 +18,12 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { action, roomId, data } = body;
 
+  // 1. ผู้ตั้งรหัสสร้างห้อง
   if (action === "CREATE") {
     rooms[roomId] = {
       id: roomId,
-      status: "WAITING",
+      status: "LOBBY", // รอคนถอดรหัสเข้าห้อง
+      defuserJoined: false,
       targetWord: "",
       secretKey: "",
       cipherHex: "",
@@ -33,6 +35,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, room: rooms[roomId] });
   }
 
+  // 2. ผู้ถอดรหัสจอยห้อง
+  if (action === "JOIN") {
+    if (!rooms[roomId]) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+    rooms[roomId].defuserJoined = true;
+    rooms[roomId].lastUpdate = Date.now();
+    return NextResponse.json({ success: true, room: rooms[roomId] });
+  }
+
+  // 3. เริ่มเกมและเริ่มจับเวลานับถอยหลัง
   if (action === "ARM") {
     if (!rooms[roomId]) return NextResponse.json({ error: "Room not found" }, { status: 404 });
     rooms[roomId] = {
@@ -45,6 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, room: rooms[roomId] });
   }
 
+  // 4. ผู้ถอดรหัสส่งคำตอบ
   if (action === "SUBMIT") {
     if (!rooms[roomId]) return NextResponse.json({ error: "Room not found" }, { status: 404 });
     const isCorrect = data.answer.trim().toUpperCase() === rooms[roomId].targetWord.toUpperCase();
@@ -53,6 +65,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, room: rooms[roomId], isCorrect });
   }
 
+  // 5. ระเบิดทำงาน (หมดเวลา)
   if (action === "EXPLODE") {
     if (!rooms[roomId]) return NextResponse.json({ error: "Room not found" }, { status: 404 });
     rooms[roomId].status = "EXPLODED";
