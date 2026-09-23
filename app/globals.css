@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@500;700;800;900&family=VT323&family=Orbitron:wght@800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@500;700;800;900&family=VT323&family=Chakra+Petch:wght@700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,51 +7,29 @@
 :root {
   --font-main: 'Kanit', sans-serif;
   --font-timer: 'VT323', monospace;
-  --font-digital: 'Orbitron', monospace;
+  --font-digital: 'Chakra Petch', sans-serif;
 }
 
 body {
   font-family: var(--font-main);
-  background: radial-gradient(circle at 50% 20%, #2b3342 0%, #11151c 100%);
+  background: radial-gradient(circle at 50% 20%, #1e293b 0%, #090d16 100%);
   min-height: 100vh;
   margin: 0;
   color: #f1f5f9;
 }
 
-/* แผงตู้เซฟเหล็กกล้า Industrial Vault */
-.vault-panel {
-  background: linear-gradient(160deg, #374151 0%, #1f2937 60%, #111827 100%);
-  border: 8px solid #4b5563;
-  border-radius: 28px;
-  box-shadow: 
-    0 25px 60px rgba(0, 0, 0, 0.9),
-    inset 3px 3px 0px rgba(255, 255, 255, 0.25),
-    inset -4px -4px 0px rgba(0, 0, 0, 0.7);
+/* คอนเทนเนอร์หลัก ล็อกสัดส่วนไม่ให้ยืดแบน */
+.vault-container {
+  width: 100%;
+  max-width: 900px;
+  background: #1e293b;
+  border: 6px solid #475569;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), inset 2px 2px 4px rgba(255, 255, 255, 0.1);
   position: relative;
 }
 
-/* แถบคำเตือนลายขวางอุตสาหกรรม */
-.hazard-stripe {
-  background: repeating-linear-gradient(
-    -45deg,
-    #eab308,
-    #eab308 16px,
-    #18181b 16px,
-    #18181b 32px
-  );
-  border-radius: 8px;
-  border: 2px solid #000;
-}
-
-/* กรอบโมดูลภายในตู้เซฟ */
-.vault-module {
-  background: linear-gradient(180deg, #1e2530 0%, #131720 100%);
-  border: 3px solid #374151;
-  border-radius: 16px;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.8), 0 3px 0px rgba(255,255,255,0.08);
-}
-
-/* หมุดสลักเกลียวทองเหลือง */
+/* สกรูมุมตู้เซฟ */
 .brass-screw {
   width: 14px;
   height: 14px;
@@ -61,79 +39,70 @@ body {
   box-shadow: 1px 2px 3px rgba(0,0,0,0.6);
 }
 
-/* หน้าปัดเวลานับถอยหลัง */
-.vault-timer {
-  font-family: var(--font-timer);
-  background: #05070a;
-  color: #ef4444;
-  text-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
-  letter-spacing: 4px;
-  border: 4px solid #1f2937;
-  border-radius: 12px;
-  box-shadow: inset 0 0 12px rgba(0,0,0,0.9);
+/* แถบสีคำเตือน */
+.hazard-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    #eab308,
+    #eab308 14px,
+    #18181b 14px,
+    #18181b 28px
+  );
+  border-radius: 6px;
+  border: 2px solid #000;
 }
 
-/* ปุ่มกด 3D แบบลอยนูนสูง (Chunky Tactical Button) */
+/* จอนาฬิกา LED 7-Segment */
+.vault-timer {
+  font-family: var(--font-timer);
+  background: #020617;
+  color: #ef4444;
+  text-shadow: 0 0 16px rgba(239, 68, 68, 0.95);
+  letter-spacing: 4px;
+  border: 3px solid #1e293b;
+  border-radius: 12px;
+}
+
+/* ปุ่ม 3D สัมผัสเด้ง */
 .tactile-btn {
   font-family: var(--font-main);
-  font-weight: 900;
-  border-radius: 16px;
+  font-weight: 800;
   border: 3px solid #000;
-  box-shadow: 0 7px 0px #000, 0 12px 18px rgba(0,0,0,0.5);
-  transition: all 0.08s ease-in-out;
+  box-shadow: 0 6px 0px #000;
+  transition: all 0.08s ease;
   user-select: none;
 }
 .tactile-btn:active {
-  transform: translateY(6px);
-  box-shadow: 0 1px 0px #000, 0 4px 8px rgba(0,0,0,0.6);
+  transform: translateY(4px);
+  box-shadow: 0 2px 0px #000;
 }
 
-/* ปุ่มบิตสวิตช์ขนาดใหญ่ 3D ลอยนูน */
-.tactile-bit-btn {
+/* สวิตช์บิต 3D กดแตะสลับ */
+.bit-toggle-btn {
   font-family: var(--font-digital);
   font-weight: 900;
-  border-radius: 14px;
+  height: 64px;
+  border-radius: 12px;
   border: 3px solid #000;
-  transition: all 0.08s ease-in-out;
-  user-select: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  transition: all 0.08s ease;
+  user-select: none;
+  cursor: pointer;
 }
-.tactile-bit-btn:active {
-  transform: translateY(5px);
-  box-shadow: 0 1px 0px #000;
+.bit-toggle-btn:active {
+  transform: translateY(4px);
 }
-
-/* สถานะบิต 0 (ดับ/ยุบ) */
-.tactile-bit-0 {
-  background: linear-gradient(180deg, #374151 0%, #1f2937 100%);
-  color: #9ca3af;
-  box-shadow: 0 6px 0px #111827;
+.bit-toggle-0 {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  color: #94a3b8;
+  box-shadow: 0 5px 0px #090d16;
 }
-
-/* สถานะบิต 1 (ลอยเด่น ไฟติด) */
-.tactile-bit-1 {
+.bit-toggle-1 {
   background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
   color: #ffffff;
   border-color: #38bdf8;
-  box-shadow: 0 6px 0px #0c4a6e, 0 0 20px rgba(56, 189, 248, 0.5);
-}
-
-/* ไฟ LED อินดิเคเตอร์ */
-.led-bulb-off {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ef4444;
-  opacity: 0.4;
-  box-shadow: inset 1px 1px 2px #000;
-}
-.led-bulb-on {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 8px #22c55e;
+  box-shadow: 0 5px 0px #082f49, 0 0 16px rgba(56, 189, 248, 0.6);
 }
