@@ -150,7 +150,6 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // Local Countdown Timer
   useEffect(() => {
     if (gameStatus !== "PLAYING") return;
     const timer = setInterval(() => {
@@ -164,7 +163,6 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
-  // Polling ตรวจสอบสถานะห้อง: ให้ Polling ทำงานต่อเนื่องจนกว่าทั้งสองฝั่งจะจบเกมจริง
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -247,7 +245,6 @@ export default function BombWorkshopGame() {
     });
   };
 
-  // ตรวจคำตอบและส่งผลลัพธ์กลับไปยังเซิร์ฟเวอร์ทันที
   const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
 
@@ -261,7 +258,6 @@ export default function BombWorkshopGame() {
     triggerHaptic(isCorrect ? 80 : 250);
     setGameStatus(nextStatus);
 
-    // ยืนยันการส่งผลลัพธ์ไปที่เซิร์ฟเวอร์เพื่อให้หน้าจอของ Operator อัปเดตทันที
     try {
       await fetch("/api/room", {
         method: "POST",
@@ -501,6 +497,7 @@ export default function BombWorkshopGame() {
     );
   }
 
+  const totalChars = userBitsMatrix.length;
   const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
   const currentKeyBits = keyBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
   const currentUserBits = userBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
@@ -564,38 +561,64 @@ export default function BombWorkshopGame() {
             </div>
 
             <div className="vault-module p-4 sm:p-6 border-2 border-slate-600">
+              
+              {/* แถบตัวระบุตำแหน่งตัวอักษร */}
               <div className="flex flex-wrap justify-between items-center border-b border-slate-700 pb-3 mb-4 gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-slate-300">เลือกตัวอักษร:</span>
-                  <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  
+                  {/* Badge บอกตำแหน่งปัจจุบัน */}
+                  <div className="flex items-center gap-2">
+                    <span className="bg-amber-500 text-black text-xs font-black px-3 py-1 rounded-md uppercase tracking-wider shadow">
+                      {`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+                      {`[ SLOT ${activeCharIndex + 1} OF ${totalChars} ]`}
+                    </span>
+                  </div>
+
+                  {/* ปุ่มเลือกเปลี่ยนตำแหน่ง */}
+                  <div className="flex gap-2 mt-1 sm:mt-0">
                     {userBitsMatrix.map((_, idx) => (
                       <button
                         key={idx}
                         onClick={() => { triggerHaptic(20); setActiveCharIndex(idx); }}
-                        className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer ${
+                        className={`tactile-btn px-4 py-1.5 text-sm font-mono cursor-pointer flex items-center gap-1.5 ${
                           activeCharIndex === idx
-                            ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_#f59e0b]"
-                            : "bg-slate-800 text-slate-300 border-slate-700"
+                            ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_14px_#f59e0b]"
+                            : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
                         }`}
                       >
-                        ตัวที่ {idx + 1}
+                        <span className={`w-2 h-2 rounded-full ${activeCharIndex === idx ? "bg-black animate-ping" : "bg-slate-500"}`} />
+                        <span>{`ตัวที่ ${idx + 1}`}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="text-base font-bold">
-                  คำที่ถอดรหัสได้:{" "}
-                  <span className="text-3xl font-mono text-emerald-400 font-black ml-2 bg-black px-3 py-1 rounded border border-emerald-500/50">
-                    {currentDecodedWord}
-                  </span>
+                {/* คำที่ถอดรหัสได้ พร้อมไฮไลต์ตัวอักษรที่กำลังโฟกัสอยู่ */}
+                <div className="text-base font-bold flex items-center">
+                  <span className="text-slate-300 text-xs sm:text-sm mr-2">คำที่ถอดรหัสได้:</span>
+                  <div className="bg-black px-3 py-1 rounded-xl border border-slate-700 flex gap-1 font-mono text-2xl font-black shadow-inner">
+                    {currentDecodedWord.split("").map((ch, idx) => (
+                      <span
+                        key={idx}
+                        className={`px-1 rounded ${
+                          idx === activeCharIndex
+                            ? "text-amber-400 bg-amber-500/20 border-b-2 border-amber-400 animate-pulse scale-110"
+                            : "text-emerald-400"
+                        }`}
+                      >
+                        {ch}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-4 bg-black/70 p-4 sm:p-6 rounded-2xl border-2 border-slate-800">
                 <div>
                   <div className="text-xs font-bold text-amber-400 mb-1.5 flex justify-between">
-                    <span>{`INPUT A (Cipher บิต ตัวที่ ${activeCharIndex + 1}):`}</span>
+                    <span>{`INPUT A (Cipher บิต ตำแหน่งที่ ${activeCharIndex + 1} จาก ${totalChars}):`}</span>
                     <span className="text-slate-500 text-[11px]">8 BITS</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-3">
@@ -618,7 +641,7 @@ export default function BombWorkshopGame() {
 
                 <div>
                   <div className="text-xs font-bold text-sky-400 mb-1.5 flex justify-between">
-                    <span>{`INPUT B (Key '${defuserKey[activeCharIndex] || "?"}' บิต):`}</span>
+                    <span>{`INPUT B (Key '${defuserKey[activeCharIndex] || "?"}' บิต ตำแหน่งที่ ${activeCharIndex + 1}):`}</span>
                     <span className="text-slate-500 text-[11px]">8 BITS</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-3">
@@ -635,13 +658,13 @@ export default function BombWorkshopGame() {
 
                 <div className="text-center py-1">
                   <span className="text-xs font-bold text-amber-400 animate-pulse">
-                    ↓ แตะปุ่มสวิตช์ด้านล่างเพื่อเปลี่ยนค่า (0 ⇄ 1) ให้ตรงกับผล XOR ↓
+                    {`↓ กำลังแก้ไขบิตตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars} (0 ⇄ 1) ↓`}
                   </span>
                 </div>
 
                 <div>
-                  <div className="text-xs font-bold text-emerald-400 mb-2 flex justify-between">
-                    <span>{`OUTPUT บิตตัวที่ ${activeCharIndex + 1} (ได้ตัว: '${currentDecodedWord[activeCharIndex] || "?"}'):`}</span>
+                  <div className="text-xs font-bold text-emerald-400 mb-2 flex justify-between items-center">
+                    <span>{`OUTPUT บิตตำแหน่งที่ ${activeCharIndex + 1} (ได้ตัวอักษร: '${currentDecodedWord[activeCharIndex] || "?"}'):`}</span>
                     <span className="text-slate-400 text-[11px]">สวิตช์สัมผัส 3D</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-3">
@@ -681,7 +704,7 @@ export default function BombWorkshopGame() {
               </div>
             )}
             {gameStatus === "EXPLODED" && (
-              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-2xl shadow-xl animate-bounce">
+              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce">
                 {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
               </div>
             )}
