@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-// ใช้ globalThis เพื่อให้ Instance เดิมจำข้อมูลห้องได้ดีที่สุดบน Serverless Environment
+// เก็บสถานะห้องไว้บน globalThis ป้องกันข้อมูลหายใน Serverless instance เดิม
 const globalRooms = globalThis as unknown as {
   __GAME_ROOMS__?: Record<string, any>;
 };
@@ -11,7 +11,7 @@ if (!globalRooms.__GAME_ROOMS__) {
 
 const rooms = globalRooms.__GAME_ROOMS__;
 
-// Header ป้องกันเบราว์เซอร์และ Vercel Edge ทำการ Cache ข้อมูลเก่า
+// บังคับปิดแคช 100% ป้องกัน Vercel Edge และ Browser ดึงข้อมูลเก่า
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
   "Pragma": "no-cache",
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. สร้างห้องใหม่
+    // 1. ผู้ตั้งโจทย์สร้างห้องใหม่
     if (action === "CREATE") {
       rooms[roomId] = {
         id: roomId,
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. ฝั่ง Defuser จอยเข้าห้อง
+    // 2. ผู้ถอดรหัสจอยเข้าห้อง
     if (action === "JOIN") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. เริ่มจับเวลาระเบิด
+    // 3. เริ่มจับเวลาปล่อยสัญญาณระเบิด
     if (action === "ARM") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. ส่งคำตอบ
+    // 4. ผู้ถอดรหัสกดยืนยันตัดวงจร
     if (action === "SUBMIT") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. ระเบิดทำงาน (หมดเวลา)
+    // 5. ระเบิดทำงานเมื่อหมดเวลา
     if (action === "EXPLODE") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     return NextResponse.json(
-      { error: "Server error processing request" },
+      { error: "Internal Server Error" },
       { status: 500, headers: noCacheHeaders }
     );
   }

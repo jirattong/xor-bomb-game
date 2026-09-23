@@ -26,7 +26,7 @@ export default function IndustrialVaultGame() {
   const [defuserJoined, setDefuserJoined] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Defuser Gameplay
+  // Defuser Gameplay (Bit Toggling)
   const [defuserKey, setDefuserKey] = useState("");
   const [cipherHex, setCipherHex] = useState("");
   const [cipherBytes, setCipherBytes] = useState<number[][]>([]);
@@ -35,9 +35,7 @@ export default function IndustrialVaultGame() {
   const [activeCharIndex, setActiveCharIndex] = useState(0);
   const [userBits, setUserBits] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
 
-  const pollInterval = useRef<any>(null);
-
-  // คำนวณคำที่แปลงได้
+  // แปลงบิตเป็นตัวอักษร
   const currentDecodedWord = userBits
     .map((byte) => {
       const code = parseInt(byte.join(""), 2);
@@ -74,6 +72,8 @@ export default function IndustrialVaultGame() {
         setSecretKey(k);
         setCipherHex(hex);
         setRole("OPERATOR_LOBBY");
+      } else {
+        alert("ไม่สามารถสร้างห้องได้ กรุณาลองใหม่อีกครั้ง");
       }
     } catch {
       alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
@@ -98,14 +98,14 @@ export default function IndustrialVaultGame() {
         setRoomId(code);
         setRole("DEFUSER");
       } else {
-        alert("ไม่พบรหัสห้องนี้ กรุณาตรวจสอบว่าผู้ตั้งรหัสกดสร้างห้องแล้วหรือยัง");
+        alert("ไม่พบรหัสห้องนี้ (ตรวจสอบว่าผู้สร้างกดเปิดห้องแล้วหรือยัง)");
       }
     } catch {
       alert("เชื่อมต่อขัดข้อง");
     }
   };
 
- // ระบบตรวจจับสถานะห้องแบบ Sequential Polling ป้องกันอาการค้างและ Request ชนกัน
+  // Sequential Polling: ป้องกันอาการเกมค้าง และป้องกัน Request ชนกัน
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -128,7 +128,6 @@ export default function IndustrialVaultGame() {
             setDefuserKey(data.secretKey);
             setCipherHex(data.cipherHex);
 
-            // เซ็ตบิตเฉพาะครั้งแรกที่ได้รับข้อมูล
             setCipherBytes((prev) => {
               if (prev.length === 0 && data.cipherHex) {
                 const cBytes: number[][] = [];
@@ -136,7 +135,6 @@ export default function IndustrialVaultGame() {
                   const val = parseInt(data.cipherHex.substr(i, 2), 16);
                   cBytes.push(val.toString(2).padStart(8, "0").split("").map(Number));
                 }
-                // อัปเดต userBits เริ่มต้น
                 setUserBits(cBytes.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
                 return cBytes;
               }
@@ -150,7 +148,6 @@ export default function IndustrialVaultGame() {
               return prev;
             });
 
-            // คำนวณเวลาที่เหลือ
             const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
             const remain = Math.max(0, data.timeLimit - elapsed);
             setTimeLeft(remain);
@@ -163,7 +160,6 @@ export default function IndustrialVaultGame() {
       } catch (err) {
         console.error("Polling error:", err);
       } finally {
-        // รอ 1 วินาทีหลังจาก Request ก่อนหน้าเสร็จสิ้น ค่อยส่ง Request ถัดไป (ไม่ค้างแน่นอน)
         if (isMounted) {
           timeoutId = setTimeout(pollRoom, 1000);
         }
@@ -178,12 +174,7 @@ export default function IndustrialVaultGame() {
     };
   }, [roomId, role]);
 
-    fetchRoom();
-    pollInterval.current = setInterval(fetchRoom, 1000);
-    return () => clearInterval(pollInterval.current);
-  }, [roomId, role, cipherBytes.length]);
-
-  // ผู้ตั้งรหัสกดเริ่ม
+  // ผู้ตั้งรหัสกดเริ่มนับถอยหลัง
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
 
@@ -242,7 +233,7 @@ export default function IndustrialVaultGame() {
   };
 
   // =========================================================================
-  // 1. หน้าจอ MENU: ปุ่มลอย 3D ขนาดใหญ่ สไตล์ Industrial Vault
+  // 1. หน้าจอ MENU
   // =========================================================================
   if (role === "MENU") {
     return (
@@ -268,7 +259,6 @@ export default function IndustrialVaultGame() {
           </div>
 
           <div className="space-y-6">
-            {/* โซนที่ 1: ผู้ตั้งรหัส */}
             <div className="vault-module p-6 border-amber-500/40">
               <span className="text-xs font-black text-amber-400 uppercase tracking-widest block mb-1">
                 MODULE 01
@@ -285,7 +275,6 @@ export default function IndustrialVaultGame() {
               </button>
             </div>
 
-            {/* โซนที่ 2: ผู้กู้ระเบิด */}
             <div className="vault-module p-6 border-sky-500/40">
               <span className="text-xs font-black text-sky-400 uppercase tracking-widest block mb-1">
                 MODULE 02
@@ -318,7 +307,7 @@ export default function IndustrialVaultGame() {
   }
 
   // =========================================================================
-  // 2. หน้าจอตั้งค่ารหัสลับ (OPERATOR SETUP)
+  // 2. หน้าจอ OPERATOR SETUP
   // =========================================================================
   if (role === "OPERATOR_SETUP") {
     return (
@@ -395,7 +384,7 @@ export default function IndustrialVaultGame() {
   }
 
   // =========================================================================
-  // 3. หน้าจอ LOBBY ฝั่งผู้ตั้งรหัส
+  // 3. หน้าจอ OPERATOR LOBBY
   // =========================================================================
   if (role === "OPERATOR_LOBBY") {
     return (
@@ -469,7 +458,7 @@ export default function IndustrialVaultGame() {
   }
 
   // =========================================================================
-  // 4. หน้าจอ DEFUSER : แผงตู้เซฟเหล็กกล้า + สวิตช์บิต 3D Chunky เต็มจอ
+  // 4. หน้าจอ DEFUSER : แผงควบคุมตู้เซฟ 8 บิตตรงแนวกัน
   // =========================================================================
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6">
@@ -479,7 +468,6 @@ export default function IndustrialVaultGame() {
         <div className="brass-screw absolute bottom-3 left-3" />
         <div className="brass-screw absolute bottom-3 right-3" />
 
-        {/* แถบหัวสถานะ */}
         <div className="flex justify-between items-center bg-black/60 border-2 border-slate-700 rounded-xl px-4 py-2.5 mb-4">
           <div className="text-sm font-bold text-slate-300">
             VAULT UNIT: <span className="text-amber-400 font-mono text-xl ml-2 font-black">{roomId}</span>
@@ -500,11 +488,7 @@ export default function IndustrialVaultGame() {
           </div>
         ) : (
           <div className="space-y-4">
-            
-            {/* แถบด้านบน: ตัวนับเวลา 7-Segment + ข้อมูลสัญญาณ Cipher / Key */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              
-              {/* นาฬิกา 7-Segment ขอบนูน */}
               <div className="vault-module p-4 flex flex-col items-center justify-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                   DETONATION COUNTDOWN
@@ -514,7 +498,6 @@ export default function IndustrialVaultGame() {
                 </div>
               </div>
 
-              {/* สัญญาณ Cipher Hex */}
               <div className="vault-module p-4 flex flex-col justify-center text-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                   CIPHER SIGNAL (HEX)
@@ -524,7 +507,6 @@ export default function IndustrialVaultGame() {
                 </div>
               </div>
 
-              {/* กุญแจ Key */}
               <div className="vault-module p-4 flex flex-col justify-center text-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                   SECRET KEY
@@ -533,13 +515,9 @@ export default function IndustrialVaultGame() {
                   {defuserKey || "----"}
                 </div>
               </div>
-
             </div>
 
-            {/* แผงถอดรหัส XOR Terminal: 8 บิตตรงแนวกันแบบ Column-by-Column */}
             <div className="vault-module p-4 sm:p-6 border-2 border-slate-600">
-              
-              {/* แถบเลือกตัวอักษร */}
               <div className="flex flex-wrap justify-between items-center border-b border-slate-700 pb-3 mb-4 gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs sm:text-sm font-bold text-slate-300">เลือกตัวอักษร:</span>
@@ -565,10 +543,7 @@ export default function IndustrialVaultGame() {
                 </div>
               </div>
 
-              {/* บล็อก 8 บิตทั้ง 3 แถว วางพิกัดคอลัมน์ตรงกันเป๊ะ */}
               <div className="space-y-4 bg-black/70 p-4 sm:p-6 rounded-2xl border-2 border-slate-800">
-                
-                {/* 1. แถว Cipher บิต */}
                 <div>
                   <div className="text-xs font-bold text-amber-400 mb-1.5 flex justify-between">
                     <span>INPUT A (Cipher บิต):</span>
@@ -586,14 +561,12 @@ export default function IndustrialVaultGame() {
                   </div>
                 </div>
 
-                {/* สัญลักษณ์ XOR */}
                 <div className="text-center py-0.5">
                   <span className="bg-purple-900/80 border border-purple-500/60 text-purple-200 font-mono text-xs font-bold px-4 py-1 rounded-full shadow-md">
                     ↓ XOR (เหมือนกันได้ 0, ต่างกันได้ 1) ↓
                   </span>
                 </div>
 
-                {/* 2. แถว Key บิต */}
                 <div>
                   <div className="text-xs font-bold text-sky-400 mb-1.5 flex justify-between">
                     <span>INPUT B (Key &apos;{defuserKey[activeCharIndex] || "?"}&apos; บิต):</span>
@@ -611,14 +584,12 @@ export default function IndustrialVaultGame() {
                   </div>
                 </div>
 
-                {/* ลูกศรชี้ลงปุ่ม Output */}
                 <div className="text-center py-1">
                   <span className="text-xs font-bold text-amber-400 animate-pulse">
                     ↓ แตะปุ่มสวิตช์ด้านล่างเพื่อเปลี่ยนค่า (0 ⇄ 1) ให้ตรงกับผล XOR ↓
                   </span>
                 </div>
 
-                {/* 3. แถวปุ่มแตะสลับบิต (Output) ขนาดใหญ่ ลอยนูน 3D */}
                 <div>
                   <div className="text-xs font-bold text-emerald-400 mb-2 flex justify-between">
                     <span>OUTPUT (ผลลัพธ์ถอดรหัส):</span>
@@ -639,12 +610,9 @@ export default function IndustrialVaultGame() {
                     ))}
                   </div>
                 </div>
-
               </div>
-
             </div>
 
-            {/* ปุ่มตัดวงจรปลดชนวนตู้เซฟขนาดใหญ่ ลอยนูนสูง */}
             <button
               onClick={handleExecuteDefuse}
               disabled={gameStatus !== "PLAYING"}
@@ -657,7 +625,6 @@ export default function IndustrialVaultGame() {
               ✂️ CUT CIRCUIT / UNLOCK VAULT (ปลดชนวนระเบิด)
             </button>
 
-            {/* สรุปผลชนะ/แพ้ */}
             {gameStatus === "DEFUSED" && (
               <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-2xl shadow-xl">
                 ✓ BOMB DEFUSED! ปลดชนวนตู้เซฟสำเร็จ!
@@ -668,7 +635,6 @@ export default function IndustrialVaultGame() {
                 💥 BOOM! ระเบิดทำงาน ถอดรหัสผิดพลาดหรือหมดเวลา!
               </div>
             )}
-
           </div>
         )}
 
