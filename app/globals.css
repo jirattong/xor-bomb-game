@@ -12,43 +12,42 @@
 
 body {
   font-family: var(--font-main);
-  background-color: #0f172a;
+  background-color: #0b1120;
   min-height: 100vh;
   margin: 0;
   color: #f8fafc;
 }
 
-/* คอนเทนเนอร์ล็อคสัดส่วนจอมือถือ (Mobile Frame) */
-.mobile-shell {
+/* คอนเทนเนอร์ Responsive ขยายกว้างเต็มจอ */
+.full-screen-shell {
   width: 100%;
-  max-width: 440px;
-  min-height: 100vh;
+  max-width: 1100px;
+  min-height: 94vh;
   margin: 0 auto;
   background: #1e293b;
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
 }
 
-/* ก้อนระเบิดไดนาไมต์สีแดงสดใสตามรูป */
+/* ก้อนไดนาไมต์สีแดง */
 .dynamite-bundle {
   background: repeating-linear-gradient(
     90deg,
     #dc2626,
-    #dc2626 45px,
-    #991b1b 46px,
-    #b91c1c 50px
+    #dc2626 50px,
+    #991b1b 52px,
+    #b91c1c 58px
   );
-  border-radius: 20px;
+  border-radius: 16px;
   border: 4px solid #450a0a;
-  box-shadow: inset 0 6px 12px rgba(255, 255, 255, 0.25), inset 0 -6px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 4px 8px rgba(255, 255, 255, 0.25), inset 0 -4px 8px rgba(0, 0, 0, 0.6);
   position: relative;
 }
 
-/* แถบรัดระเบิดสีดำ */
 .dynamite-strap {
   position: absolute;
-  height: 16px;
+  height: 14px;
   left: 0;
   right: 0;
   background: #18181b;
@@ -56,51 +55,60 @@ body {
   border-bottom: 2px solid #09090b;
 }
 
-/* กล่องโมดูลวงจรสีเทา/เหลืองสดใส */
+/* กล่องโมดูล */
 .circuit-module {
-  background: #334155;
-  border: 4px solid #64748b;
-  border-radius: 16px;
-  box-shadow: 0 8px 0 #1e293b, inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  background: #1e293b;
+  border: 3px solid #475569;
+  border-radius: 14px;
+  box-shadow: 0 6px 0 #0f172a;
 }
 
-/* จอนาฬิกา LED สีแดงเรืองแสง */
+/* จอนาฬิกา LED 7-Segment */
 .led-screen {
   font-family: var(--font-led);
   background: #020617;
   color: #ef4444;
-  text-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
+  text-shadow: 0 0 16px rgba(239, 68, 68, 0.95);
   border: 3px solid #1e293b;
   border-radius: 10px;
   line-height: 1;
 }
 
-/* ปุ่มบิตขนาดใหญ่พิเศษสำหรับนิ้วมือถือ */
-.mobile-bit-btn {
+/* กล่องบิตแสดงผล (Cipher & Key) */
+.bit-display-cell {
   font-family: var(--font-code);
-  font-size: 2rem;
-  font-weight: 900;
-  width: 44px;
-  height: 60px;
-  border-radius: 10px;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.08s ease, background-color 0.15s;
+  border-radius: 8px;
   user-select: none;
 }
-.mobile-bit-btn:active {
+
+/* ปุ่มบิตที่กดแตะสลับ 0/1 */
+.bit-touch-btn {
+  font-family: var(--font-code);
+  font-weight: 900;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.08s ease, background-color 0.12s ease;
+  user-select: none;
+}
+.bit-touch-btn:active {
   transform: scale(0.92);
 }
-.mobile-bit-0 {
-  background: #1e293b;
-  color: #94a3b8;
-  border: 3px solid #475569;
-  box-shadow: 0 4px 0 #0f172a;
+.bit-touch-0 {
+  background: #0f172a;
+  color: #64748b;
+  border: 2px solid #334155;
+  box-shadow: 0 4px 0 #020617;
 }
-.mobile-bit-1 {
+.bit-touch-1 {
   background: #0284c7;
   color: #ffffff;
-  border: 3px solid #38bdf8;
-  box-shadow: 0 4px 0 #0369a1, 0 0 15px rgba(56, 189, 248, 0.6);
+  border: 2px solid #38bdf8;
+  box-shadow: 0 4px 0 #0369a1, 0 0 14px rgba(56, 189, 248, 0.6);
+  transform: translateY(-2px);
 }
