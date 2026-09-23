@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
-// ชุดตัวอักษร Room ID ที่ตัดตัวชวนสับสนออก (ไม่มี 0, O, 1, I, L)
 const SAFE_ROOM_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const generateSafeRoomId = (len = 4): string => {
   let res = "";
@@ -67,37 +66,46 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // Network Pre-warming
   useEffect(() => {
     if (role === "OPERATOR_SETUP") {
       fetch(`/api/room?_warmup=${Date.now()}`, { cache: "no-store" }).catch(() => {});
     }
   }, [role]);
 
-  // ส่งสถานะไปยังเซิร์ฟเวอร์แบบ Guaranteed Delivery
+  // ⚡ Dual-Channel Sync: ยิงทั้ง fetch ทันที + Retry ถี่ทุก 250ms เพื่อให้ Operator เห็นผลพร้อมกัน
   const syncStatusToServer = useCallback((status: "DEFUSED" | "EXPLODED") => {
+    const payload = JSON.stringify({
+      action: "SET_STATUS",
+      roomId,
+      data: { status },
+    });
+
+    // ช่องทางที่ 1: Beacon API สำหรับส่งทันทีโดยไม่ติดคิว
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon("/api/room", blob);
+    }
+
+    // ช่องทางที่ 2: Fetch พร้อม Rapid Retry
     let attempts = 0;
-    const maxAttempts = 6;
+    const maxAttempts = 5;
 
     const send = async () => {
       try {
         const res = await fetch("/api/room", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "SET_STATUS",
-            roomId,
-            data: { status },
-          }),
+          body: payload,
+          cache: "no-store",
         });
         if (!res.ok && attempts < maxAttempts) {
           attempts++;
-          setTimeout(send, 500);
+          setTimeout(send, 250);
         }
-      } catch (err) {
+      } catch {
         if (attempts < maxAttempts) {
           attempts++;
-          setTimeout(send, 500);
+          setTimeout(send, 250);
         }
       }
     };
@@ -113,7 +121,6 @@ export default function BombWorkshopGame() {
     syncStatusToServer("EXPLODED");
   }, [syncStatusToServer]);
 
-  // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
@@ -163,7 +170,6 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // 2. ผู้กู้ระเบิดจอยเข้าห้อง
   const handleJoinRoom = async () => {
     const code = inputRoomId.replace(/[^A-Za-z0-9]/g, "").trim().toUpperCase();
     if (!code || code.length !== 4) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
@@ -200,7 +206,7 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
-  // Polling ตรวจจับการเชื่อมต่อและสถานะห้อง
+  // ⚡ Turbo Polling: เมื่ออยู่ในสถานะ PLAYING ให้ยิงเช็คถี่ระดับ 250ms เพื่อให้เห็นผลพร้อมกันเสี้ยววินาที
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -247,7 +253,8 @@ export default function BombWorkshopGame() {
         console.error("Polling error:", err);
       } finally {
         if (isMounted) {
-          const intervalTime = gameStatus === "PLAYING" ? 600 : 1000;
+          // ถ้ากำลังเล่นอยู่ Polling จะเร็วเป็นพิเศษ (250ms) เมื่อจบเกมจะปรับเป็น 1000ms
+          const intervalTime = gameStatus === "PLAYING" ? 250 : 1000;
           timeoutId = setTimeout(pollRoom, intervalTime);
         }
       }
@@ -297,6 +304,8 @@ export default function BombWorkshopGame() {
 
     triggerHaptic(isCorrect ? 80 : 250);
     setGameStatus(nextStatus);
+
+    // ยิงผลลัพธ์ผ่านช่องทางด่วน
     syncStatusToServer(nextStatus);
   };
 
@@ -534,7 +543,7 @@ export default function BombWorkshopGame() {
   }
 
   // =========================================================================
-  // 4. หน้าจอ DEFUSER (ปรับตำแหน่งปุ่มส่ง + ย้ายคำใบ้ XOR มาแทนที่ด้านล่าง)
+  // 4. หน้าจอ DEFUSER
   // =========================================================================
   const totalChars = userBitsMatrix.length;
   const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
@@ -717,7 +726,7 @@ export default function BombWorkshopGame() {
 
               </div>
 
-              {/* ย้ายคำใบ้ XOR ลงมาคั่นด้านล่างแผงบิต เพื่อช่วยเว้นระยะห่างและสังเกตง่าย */}
+              {/* คำใบ้ XOR ย้ายลงมาด้านล่าง */}
               <div className="text-center pt-4 pb-1">
                 <span className="bg-purple-900/80 border border-purple-500/60 text-purple-200 font-mono text-xs sm:text-sm font-bold px-5 py-1.5 rounded-full shadow-md inline-block">
                   💡 คำใบ้: XOR (เหมือนกันได้ 0, ต่างกันได้ 1)
@@ -726,7 +735,7 @@ export default function BombWorkshopGame() {
 
             </div>
 
-            {/* ปุ่มตัดวงจรปลดชนวน: เว้นระยะห่างด้านบน (mt-6) เพื่อให้ไม่เบียด */}
+            {/* ปุ่มตัดวงจรปลดชนวน */}
             <div className="pt-2">
               <button
                 onClick={handleExecuteDefuse}
