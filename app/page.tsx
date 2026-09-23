@@ -63,11 +63,19 @@ export default function BombWorkshopGame() {
     setGameStatus("EXPLODED");
     triggerHaptic(200);
 
-    await fetch("/api/room", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "EXPLODE", roomId }),
-    }).catch(() => {});
+    try {
+      await fetch("/api/room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "SET_STATUS", 
+          roomId,
+          data: { status: "EXPLODED" }
+        }),
+      });
+    } catch (e) {
+      console.error("Explode sync error:", e);
+    }
   }, [roomId]);
 
   const handleSaveAndCreateRoom = async () => {
@@ -142,6 +150,7 @@ export default function BombWorkshopGame() {
     }
   };
 
+  // Local Countdown Timer
   useEffect(() => {
     if (gameStatus !== "PLAYING") return;
     const timer = setInterval(() => {
@@ -155,9 +164,9 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
+  // Polling ตรวจสอบสถานะห้อง: ให้ Polling ทำงานต่อเนื่องจนกว่าทั้งสองฝั่งจะจบเกมจริง
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
-    if (gameStatus === "DEFUSED" || gameStatus === "EXPLODED") return;
 
     let isMounted = true;
     let timeoutId: any = null;
@@ -212,7 +221,7 @@ export default function BombWorkshopGame() {
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [roomId, role, gameStatus, cipherBitsMatrix.length]);
+  }, [roomId, role, cipherBitsMatrix.length]);
 
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
@@ -238,7 +247,8 @@ export default function BombWorkshopGame() {
     });
   };
 
-  const handleExecuteDefuse = () => {
+  // ตรวจคำตอบและส่งผลลัพธ์กลับไปยังเซิร์ฟเวอร์ทันที
+  const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
 
     const finalAnswer = decodeBitsToWord(userBitsMatrix).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -251,15 +261,20 @@ export default function BombWorkshopGame() {
     triggerHaptic(isCorrect ? 80 : 250);
     setGameStatus(nextStatus);
 
-    fetch("/api/room", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "SET_STATUS",
-        roomId,
-        data: { status: nextStatus },
-      }),
-    }).catch((e) => console.error("Sync status error", e));
+    // ยืนยันการส่งผลลัพธ์ไปที่เซิร์ฟเวอร์เพื่อให้หน้าจอของ Operator อัปเดตทันที
+    try {
+      await fetch("/api/room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SET_STATUS",
+          roomId,
+          data: { status: nextStatus },
+        }),
+      });
+    } catch (e) {
+      console.error("Sync defuse result error:", e);
+    }
   };
 
   const formatTimer = (s: number) => {
@@ -471,8 +486,8 @@ export default function BombWorkshopGame() {
           )}
 
           {gameStatus === "DEFUSED" && (
-            <div className="p-4 bg-emerald-600 text-white font-black rounded-2xl text-xl mt-4 shadow-lg">
-              ✓ อีกฝั่งปลดชนวนสำเร็จ!
+            <div className="p-4 bg-emerald-600 text-white font-black rounded-2xl text-xl mt-4 shadow-lg animate-pulse">
+              ✓ อีกฝั่งปลดชนวนสำเร็จ! ตู้เซฟถูกเปิดออกแล้ว
             </div>
           )}
 
@@ -661,12 +676,12 @@ export default function BombWorkshopGame() {
             </button>
 
             {gameStatus === "DEFUSED" && (
-              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-xl">
+              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-2xl shadow-xl">
                 {`✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง ("${submittedWordResult}")`}
               </div>
             )}
             {gameStatus === "EXPLODED" && (
-              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce">
+              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-2xl shadow-xl animate-bounce">
                 {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
               </div>
             )}
