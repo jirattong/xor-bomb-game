@@ -2,6 +2,16 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
+// ชุดตัวอักษร Room ID ที่ตัดตัวชวนสับสนออก (ไม่มี 0, O, 1, I, L)
+const SAFE_ROOM_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const generateSafeRoomId = (len = 4): string => {
+  let res = "";
+  for (let i = 0; i < len; i++) {
+    res += SAFE_ROOM_CHARS.charAt(Math.floor(Math.random() * SAFE_ROOM_CHARS.length));
+  }
+  return res;
+};
+
 const charTo8Bits = (char: string): number[] => {
   if (!char) return [0, 0, 0, 0, 0, 0, 0, 0];
   return char.charCodeAt(0).toString(2).padStart(8, "0").split("").map(Number);
@@ -57,7 +67,14 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // ส่งสถานะไปยังเซิร์ฟเวอร์แบบ Guaranteed Delivery (Retry จนกว่าจะสำเร็จ)
+  // Network Pre-warming: ปลุก Serverless Container ให้ตื่นตัวล่วงหน้าเมื่อเข้าหน้า Setup
+  useEffect(() => {
+    if (role === "OPERATOR_SETUP") {
+      fetch(`/api/room?_warmup=${Date.now()}`, { cache: "no-store" }).catch(() => {});
+    }
+  }, [role]);
+
+  // ส่งสถานะไปยังเซิร์ฟเวอร์แบบ Guaranteed Delivery (Retry อัตโนมัติ)
   const syncStatusToServer = useCallback((status: "DEFUSED" | "EXPLODED") => {
     let attempts = 0;
     const maxAttempts = 6;
@@ -96,6 +113,7 @@ export default function BombWorkshopGame() {
     syncStatusToServer("EXPLODED");
   }, [syncStatusToServer]);
 
+  // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
@@ -104,7 +122,8 @@ export default function BombWorkshopGame() {
     if (t.length !== k.length) return alert("คำศัพท์และ Key ต้องมีความยาวเท่ากัน!");
 
     setIsSubmitting(true);
-    const newId = Math.random().toString(36).substring(2, 6).toUpperCase();
+    // สุ่มรหัส 4 หลักที่ตัดตัวอักษรสับสนออก
+    const newId = generateSafeRoomId(4);
 
     let hex = "";
     for (let i = 0; i < t.length; i++) {
@@ -145,6 +164,7 @@ export default function BombWorkshopGame() {
     }
   };
 
+  // 2. ผู้กู้ระเบิดจอยเข้าห้อง
   const handleJoinRoom = async () => {
     const code = inputRoomId.replace(/[^A-Za-z0-9]/g, "").trim().toUpperCase();
     if (!code || code.length !== 4) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
@@ -181,7 +201,7 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
-  // Polling ความเร็วสูง 600ms สำหรับฝั่ง Operator เพื่อให้ได้รับคำตอบแบบเรียลไทม์ทันที
+  // Polling ตรวจจับการเชื่อมต่อและสถานะห้อง
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -228,7 +248,6 @@ export default function BombWorkshopGame() {
         console.error("Polling error:", err);
       } finally {
         if (isMounted) {
-          // ถ้าอยู่ในสถานะเล่น Polling จะเร็วขึ้น (600ms) เพื่อให้รับผลเรียลไทม์ที่สุด
           const intervalTime = gameStatus === "PLAYING" ? 600 : 1000;
           timeoutId = setTimeout(pollRoom, intervalTime);
         }
@@ -267,7 +286,6 @@ export default function BombWorkshopGame() {
     });
   };
 
-  // ตรวจคำตอบทันที + สั่งยิง Retry การันตีว่าเซิร์ฟเวอร์และอีกฝั่งจะได้รับข้อมูลแน่นอน
   const handleExecuteDefuse = () => {
     if (gameStatus !== "PLAYING") return;
 
@@ -280,8 +298,6 @@ export default function BombWorkshopGame() {
 
     triggerHaptic(isCorrect ? 80 : 250);
     setGameStatus(nextStatus);
-
-    // ยิงอัปเดตสถานะแบบการันตีส่งถึงเซิร์ฟเวอร์
     syncStatusToServer(nextStatus);
   };
 
@@ -291,6 +307,9 @@ export default function BombWorkshopGame() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // =========================================================================
+  // 1. หน้าจอ MENU
+  // =========================================================================
   if (role === "MENU") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
@@ -360,6 +379,9 @@ export default function BombWorkshopGame() {
     );
   }
 
+  // =========================================================================
+  // 2. หน้าจอ OPERATOR SETUP
+  // =========================================================================
   if (role === "OPERATOR_SETUP") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
@@ -373,7 +395,7 @@ export default function BombWorkshopGame() {
             <h2 className="text-2xl font-black text-amber-400">⚙️ ตั้งค่ารหัสตู้เซฟ</h2>
             <button
               onClick={() => setRole("MENU")}
-              className="tactile-btn bg-slate-700 text-slate-200 text-xs px-4 py-2"
+              className="tactile-btn bg-slate-700 text-slate-200 text-xs px-4 py-2 cursor-pointer"
             >
               ย้อนกลับ
             </button>
@@ -388,7 +410,7 @@ export default function BombWorkshopGame() {
                 type="text"
                 maxLength={4}
                 value={targetWord}
-                onChange={(e) => setTargetWord(e.target.value.toUpperCase())}
+                onChange={(e) => setTargetWord(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
                 className="w-full h-16 bg-black border-4 border-slate-700 rounded-2xl text-3xl font-mono text-center tracking-widest font-black text-emerald-400 outline-none focus:border-emerald-500 uppercase shadow-inner"
               />
             </div>
@@ -401,7 +423,7 @@ export default function BombWorkshopGame() {
                 type="text"
                 maxLength={4}
                 value={secretKey}
-                onChange={(e) => setSecretKey(e.target.value.toUpperCase())}
+                onChange={(e) => setSecretKey(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
                 className="w-full h-16 bg-black border-4 border-slate-700 rounded-2xl text-3xl font-mono text-center tracking-widest font-black text-sky-400 outline-none focus:border-sky-500 uppercase shadow-inner"
               />
             </div>
@@ -413,7 +435,7 @@ export default function BombWorkshopGame() {
               <select
                 value={timeLimit}
                 onChange={(e) => setTimeLimit(Number(e.target.value))}
-                className="w-full h-16 bg-black border-4 border-slate-700 rounded-2xl px-5 text-xl font-bold text-white outline-none"
+                className="w-full h-16 bg-black border-4 border-slate-700 rounded-2xl px-5 text-xl font-bold text-white outline-none cursor-pointer"
               >
                 <option value={60}>60 วินาที (1 นาที)</option>
                 <option value={120}>120 วินาที (2 นาที)</option>
@@ -434,6 +456,9 @@ export default function BombWorkshopGame() {
     );
   }
 
+  // =========================================================================
+  // 3. หน้าจอ OPERATOR LOBBY
+  // =========================================================================
   if (role === "OPERATOR_LOBBY") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
@@ -509,6 +534,9 @@ export default function BombWorkshopGame() {
     );
   }
 
+  // =========================================================================
+  // 4. หน้าจอ DEFUSER
+  // =========================================================================
   const totalChars = userBitsMatrix.length;
   const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
   const currentKeyBits = keyBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
@@ -528,7 +556,7 @@ export default function BombWorkshopGame() {
           </div>
           <button
             onClick={() => { setRoomId(""); setRole("MENU"); }}
-            className="tactile-btn bg-slate-800 text-slate-300 text-xs px-3 py-1.5"
+            className="tactile-btn bg-slate-800 text-slate-300 text-xs px-3 py-1.5 cursor-pointer"
           >
             เมนูหลัก
           </button>
@@ -706,12 +734,12 @@ export default function BombWorkshopGame() {
             </button>
 
             {gameStatus === "DEFUSED" && (
-              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-2xl shadow-xl">
+              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-xl">
                 {`✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง ("${submittedWordResult}")`}
               </div>
             )}
             {gameStatus === "EXPLODED" && (
-              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-2xl shadow-xl animate-bounce">
+              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce">
                 {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
               </div>
             )}
