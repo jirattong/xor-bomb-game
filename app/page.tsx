@@ -67,14 +67,14 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // Network Pre-warming: ปลุก Serverless Container ให้ตื่นตัวล่วงหน้าเมื่อเข้าหน้า Setup
+  // Network Pre-warming
   useEffect(() => {
     if (role === "OPERATOR_SETUP") {
       fetch(`/api/room?_warmup=${Date.now()}`, { cache: "no-store" }).catch(() => {});
     }
   }, [role]);
 
-  // ส่งสถานะไปยังเซิร์ฟเวอร์แบบ Guaranteed Delivery (Retry อัตโนมัติ)
+  // ส่งสถานะไปยังเซิร์ฟเวอร์แบบ Guaranteed Delivery
   const syncStatusToServer = useCallback((status: "DEFUSED" | "EXPLODED") => {
     let attempts = 0;
     const maxAttempts = 6;
@@ -122,7 +122,6 @@ export default function BombWorkshopGame() {
     if (t.length !== k.length) return alert("คำศัพท์และ Key ต้องมีความยาวเท่ากัน!");
 
     setIsSubmitting(true);
-    // สุ่มรหัส 4 หลักที่ตัดตัวอักษรสับสนออก
     const newId = generateSafeRoomId(4);
 
     let hex = "";
@@ -535,7 +534,7 @@ export default function BombWorkshopGame() {
   }
 
   // =========================================================================
-  // 4. หน้าจอ DEFUSER
+  // 4. หน้าจอ DEFUSER (ปรับตำแหน่งปุ่มส่ง + ย้ายคำใบ้ XOR มาแทนที่ด้านล่าง)
   // =========================================================================
   const totalChars = userBitsMatrix.length;
   const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
@@ -651,6 +650,8 @@ export default function BombWorkshopGame() {
               </div>
 
               <div className="space-y-4 bg-black/70 p-4 sm:p-6 rounded-2xl border-2 border-slate-800">
+                
+                {/* 1. แถว Cipher Bits */}
                 <div>
                   <div className="text-xs font-bold text-amber-400 mb-1.5 flex justify-between">
                     <span>{`INPUT A (Cipher บิต ตำแหน่งที่ ${activeCharIndex + 1} จาก ${totalChars}):`}</span>
@@ -668,12 +669,7 @@ export default function BombWorkshopGame() {
                   </div>
                 </div>
 
-                <div className="text-center py-0.5">
-                  <span className="bg-purple-900/80 border border-purple-500/60 text-purple-200 font-mono text-xs font-bold px-4 py-1 rounded-full shadow-md">
-                    ↓ XOR (เหมือนกันได้ 0, ต่างกันได้ 1) ↓
-                  </span>
-                </div>
-
+                {/* 2. แถว Key Bits */}
                 <div>
                   <div className="text-xs font-bold text-sky-400 mb-1.5 flex justify-between">
                     <span>{`INPUT B (Key '${defuserKey[activeCharIndex] || "?"}' บิต ตำแหน่งที่ ${activeCharIndex + 1}):`}</span>
@@ -691,12 +687,13 @@ export default function BombWorkshopGame() {
                   </div>
                 </div>
 
-                <div className="text-center py-1">
+                <div className="text-center py-0.5">
                   <span className="text-xs font-bold text-amber-400 animate-pulse">
                     {`↓ กำลังแก้ไขบิตตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars} (0 ⇄ 1) ↓`}
                   </span>
                 </div>
 
+                {/* 3. แถวปุ่มแตะสลับบิต (Output) */}
                 <div>
                   <div className="text-xs font-bold text-emerald-400 mb-2 flex justify-between items-center">
                     <span>{`OUTPUT บิตตำแหน่งที่ ${activeCharIndex + 1} (ได้ตัวอักษร: '${currentDecodedWord[activeCharIndex] || "?"}'):`}</span>
@@ -719,27 +716,38 @@ export default function BombWorkshopGame() {
                 </div>
 
               </div>
+
+              {/* ย้ายคำใบ้ XOR ลงมาคั่นด้านล่างแผงบิต เพื่อช่วยเว้นระยะห่างและสังเกตง่าย */}
+              <div className="text-center pt-4 pb-1">
+                <span className="bg-purple-900/80 border border-purple-500/60 text-purple-200 font-mono text-xs sm:text-sm font-bold px-5 py-1.5 rounded-full shadow-md inline-block">
+                  💡 คำใบ้: XOR (เหมือนกันได้ 0, ต่างกันได้ 1)
+                </span>
+              </div>
+
             </div>
 
-            <button
-              onClick={handleExecuteDefuse}
-              disabled={gameStatus !== "PLAYING"}
-              className={`tactile-btn w-full h-18 sm:h-22 text-xl sm:text-2xl tracking-widest uppercase cursor-pointer ${
-                gameStatus === "PLAYING"
-                  ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white"
-                  : "bg-slate-800 text-slate-600 cursor-not-allowed border-slate-700"
-              }`}
-            >
-              ✂️ CUT CIRCUIT / UNLOCK VAULT (ส่งคำตอบถอดรหัส)
-            </button>
+            {/* ปุ่มตัดวงจรปลดชนวน: เว้นระยะห่างด้านบน (mt-6) เพื่อให้ไม่เบียด */}
+            <div className="pt-2">
+              <button
+                onClick={handleExecuteDefuse}
+                disabled={gameStatus !== "PLAYING"}
+                className={`tactile-btn w-full h-18 sm:h-22 text-xl sm:text-2xl tracking-widest uppercase cursor-pointer ${
+                  gameStatus === "PLAYING"
+                    ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-lg"
+                    : "bg-slate-800 text-slate-600 cursor-not-allowed border-slate-700"
+                }`}
+              >
+                ✂️ CUT CIRCUIT / UNLOCK VAULT (ส่งคำตอบถอดรหัส)
+              </button>
+            </div>
 
             {gameStatus === "DEFUSED" && (
-              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-xl">
+              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-xl mt-3">
                 {`✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง ("${submittedWordResult}")`}
               </div>
             )}
             {gameStatus === "EXPLODED" && (
-              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce">
+              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce mt-3">
                 {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
               </div>
             )}
@@ -747,9 +755,6 @@ export default function BombWorkshopGame() {
           </div>
         )}
 
-        <div className="text-center text-xs text-slate-400 py-3 mt-2">
-          RULE: 0 ⊕ 0 = 0 | 0 ⊕ 1 = 1 | 1 ⊕ 0 = 1 | 1 ⊕ 1 = 0
-        </div>
       </div>
     </main>
   );
