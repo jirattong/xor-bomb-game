@@ -200,7 +200,7 @@ export default function BombWorkshopGame() {
       } catch (err) {
         console.error("Polling error:", err);
       } finally {
-        if (isMounted && gameStatus !== "DEFUSED" && gameStatus !== "EXPLODED") {
+        if (isMounted) {
           timeoutId = setTimeout(pollRoom, 1000);
         }
       }
@@ -661,12 +661,12 @@ export default function BombWorkshopGame() {
             </button>
 
             {gameStatus === "DEFUSED" && (
-              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-2xl shadow-xl">
+              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-xl">
                 {`✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง ("${submittedWordResult}")`}
               </div>
             )}
             {gameStatus === "EXPLODED" && (
-              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-2xl shadow-xl animate-bounce">
+              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce">
                 {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
               </div>
             )}
