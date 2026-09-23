@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// เก็บสถานะห้องไว้บน globalThis ป้องกันข้อมูลหายใน Serverless instance เดิม
 const globalRooms = globalThis as unknown as {
   __GAME_ROOMS__?: Record<string, any>;
 };
@@ -11,7 +10,6 @@ if (!globalRooms.__GAME_ROOMS__) {
 
 const rooms = globalRooms.__GAME_ROOMS__;
 
-// บังคับปิดแคช 100% ป้องกัน Vercel Edge และ Browser ดึงข้อมูลเก่า
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
   "Pragma": "no-cache",
@@ -45,7 +43,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. ผู้ตั้งโจทย์สร้างห้องใหม่
     if (action === "CREATE") {
       rooms[roomId] = {
         id: roomId,
@@ -64,7 +61,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. ผู้ถอดรหัสจอยเข้าห้อง
     if (action === "JOIN") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -80,7 +76,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. เริ่มจับเวลาปล่อยสัญญาณระเบิด
     if (action === "ARM") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -101,7 +96,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. ผู้ถอดรหัสกดยืนยันตัดวงจร
+    // จุดตรวจคำตอบ: คลีนช่องว่างและแปลงเป็นตัวพิมพ์ใหญ่ทั้งสองฝั่งก่อนเทียบ
     if (action === "SUBMIT") {
       if (!rooms[roomId]) {
         return NextResponse.json(
@@ -109,18 +104,26 @@ export async function POST(request: Request) {
           { status: 404, headers: noCacheHeaders }
         );
       }
-      const isCorrect =
-        data.answer.trim().toUpperCase() ===
-        rooms[roomId].targetWord.toUpperCase();
+      
+      const userAnswer = String(data.answer || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      const correctAnswer = String(rooms[roomId].targetWord || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+      const isCorrect = userAnswer === correctAnswer;
       rooms[roomId].status = isCorrect ? "DEFUSED" : "EXPLODED";
       rooms[roomId].lastUpdate = Date.now();
+
       return NextResponse.json(
-        { success: true, room: rooms[roomId], isCorrect },
+        { 
+          success: true, 
+          room: rooms[roomId], 
+          isCorrect,
+          userAnswer,
+          correctAnswer 
+        },
         { headers: noCacheHeaders }
       );
     }
 
-    // 5. ระเบิดทำงานเมื่อหมดเวลา
     if (action === "EXPLODE") {
       if (!rooms[roomId]) {
         return NextResponse.json(

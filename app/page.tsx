@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-// ฟังก์ชันแปลงตัวอักษร 1 ตัวเป็น Binary Array 8 หลัก
 const charTo8Bits = (char: string): number[] => {
   if (!char) return [0, 0, 0, 0, 0, 0, 0, 0];
   return char
@@ -13,11 +12,20 @@ const charTo8Bits = (char: string): number[] => {
     .map(Number);
 };
 
-// ฟังก์ชันแปลงเลขฐาน 16 (Hex 2 หลัก) เป็น Binary Array 8 หลัก
 const hexByteTo8Bits = (hexByte: string): number[] => {
   const val = parseInt(hexByte, 16);
   if (isNaN(val)) return [0, 0, 0, 0, 0, 0, 0, 0];
   return val.toString(2).padStart(8, "0").split("").map(Number);
+};
+
+// ฟังก์ชันแปลง Matrix ของบิตเป็นข้อความ
+const decodeBitsToWord = (matrix: number[][]): string => {
+  return matrix
+    .map((byteArr) => {
+      const code = parseInt(byteArr.join(""), 2);
+      return code >= 32 && code <= 126 ? String.fromCharCode(code) : "?";
+    })
+    .join("");
 };
 
 export default function BombWorkshopGame() {
@@ -40,19 +48,13 @@ export default function BombWorkshopGame() {
   const [cipherBitsMatrix, setCipherBitsMatrix] = useState<number[][]>([]);
   const [keyBitsMatrix, setKeyBitsMatrix] = useState<number[][]>([]);
   
-  // บิตของแต่ละตัวอักษร (แถว = ตัวอักษร, คอลัมน์ = บิต 0-7)
   const [activeCharIndex, setActiveCharIndex] = useState(0);
   const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
+  const [submittedWordResult, setSubmittedWordResult] = useState("");
 
-  // คำนวณคำศัพท์ที่ผู้เล่นกำลังถอดรหัสอยู่แบบ Realtime
-  const currentDecodedWord = userBitsMatrix
-    .map((byte) => {
-      const ascii = parseInt(byte.join(""), 2);
-      return ascii >= 32 && ascii <= 126 ? String.fromCharCode(ascii) : "?";
-    })
-    .join("");
+  const currentDecodedWord = decodeBitsToWord(userBitsMatrix);
 
-  // 1. ผู้ตั้งรหัสบันทึกและสร้างห้อง
+  // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
@@ -63,7 +65,6 @@ export default function BombWorkshopGame() {
     setIsSubmitting(true);
     const newId = Math.random().toString(36).substring(2, 6).toUpperCase();
 
-    // เข้ารหัส XOR แปลงเป็น Hex 2 หลักต่อ 1 ตัวอักษรเสมอ (Zero Padded)
     let hex = "";
     for (let i = 0; i < t.length; i++) {
       const xorVal = t.charCodeAt(i) ^ k.charCodeAt(i);
@@ -109,14 +110,14 @@ export default function BombWorkshopGame() {
         setRoomId(code);
         setRole("DEFUSER");
       } else {
-        alert("ไม่พบรหัสห้องนี้ (ตรวจสอบว่าผู้สร้างกดสร้างห้องแล้วหรือยัง)");
+        alert("ไม่พบรหัสห้องนี้ กรุณาตรวจสอบอีกครั้ง");
       }
     } catch {
       alert("เชื่อมต่อเซิร์ฟเวอร์ขัดข้อง");
     }
   };
 
-  // Polling ตรวจสอบสถานะห้องแบบไม่ค้าง
+  // Polling ตรวจสอบสถานะห้อง
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -139,7 +140,6 @@ export default function BombWorkshopGame() {
             setDefuserKey(data.secretKey);
             setCipherHex(data.cipherHex);
 
-            // แปลง Hex และ Key เป็น Bit Arrays ถ้ายังไม่ได้ตั้งค่า
             if (data.cipherHex && cipherBitsMatrix.length === 0) {
               const hexStr = data.cipherHex;
               const cMatrix: number[][] = [];
@@ -152,7 +152,6 @@ export default function BombWorkshopGame() {
               const kMatrix = data.secretKey.split("").map((c: string) => charTo8Bits(c));
               setKeyBitsMatrix(kMatrix);
 
-              // ตั้งบิตเริ่มต้นของแต่ละตัวอักษรเป็น 0 ทั้งหมด
               setUserBitsMatrix(cMatrix.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
             }
 
@@ -215,15 +214,28 @@ export default function BombWorkshopGame() {
   // กดยืนยันตัดวงจร
   const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
-    await fetch("/api/room", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "SUBMIT",
-        roomId,
-        data: { answer: currentDecodedWord },
-      }),
-    });
+    
+    // แปลงชุดบิตทั้งหมดเป็นคำตอบที่แท้จริงสดๆ ในขณะที่กด
+    const finalAnswer = decodeBitsToWord(userBitsMatrix).trim().toUpperCase();
+    setSubmittedWordResult(finalAnswer);
+
+    try {
+      const res = await fetch("/api/room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SUBMIT",
+          roomId,
+          data: { answer: finalAnswer },
+        }),
+      });
+      const resData = await res.json();
+      if (!resData.isCorrect) {
+        console.warn(`ส่งคำว่า: ${resData.userAnswer} แต่คำที่ถูกคือ: ${resData.correctAnswer}`);
+      }
+    } catch (e) {
+      alert("เกิดข้อผิดพลาดในการส่งคำตอบ");
+    }
   };
 
   const triggerExplode = async () => {
@@ -277,7 +289,7 @@ export default function BombWorkshopGame() {
               </p>
               <button
                 onClick={() => setRole("OPERATOR_SETUP")}
-                className="tactile-btn w-full h-14 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-lg rounded-xl"
+                className="tactile-btn w-full h-14 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-lg rounded-xl cursor-pointer"
               >
                 + ตั้งค่า & สร้างห้องใหม่
               </button>
@@ -301,7 +313,7 @@ export default function BombWorkshopGame() {
               />
               <button
                 onClick={handleJoinRoom}
-                className="tactile-btn w-full h-14 bg-gradient-to-r from-sky-600 to-blue-600 text-white text-lg rounded-xl"
+                className="tactile-btn w-full h-14 bg-gradient-to-r from-sky-600 to-blue-600 text-white text-lg rounded-xl cursor-pointer"
               >
                 จอยเข้าห้องทันที
               </button>
@@ -323,7 +335,7 @@ export default function BombWorkshopGame() {
             <h2 className="text-2xl font-black text-amber-400">⚙️ ตั้งค่าคำลับ</h2>
             <button
               onClick={() => setRole("MENU")}
-              className="tactile-btn bg-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-lg border-slate-700"
+              className="tactile-btn bg-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-lg border-slate-700 cursor-pointer"
             >
               ย้อนกลับ
             </button>
@@ -375,7 +387,7 @@ export default function BombWorkshopGame() {
           <button
             onClick={handleSaveAndCreateRoom}
             disabled={isSubmitting}
-            className="tactile-btn w-full h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-black text-xl rounded-xl"
+            className="tactile-btn w-full h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-black text-xl rounded-xl cursor-pointer"
           >
             {isSubmitting ? "กำลังสร้างห้อง..." : "✓ บันทึกรหัส & สร้างห้อง"}
           </button>
@@ -458,7 +470,7 @@ export default function BombWorkshopGame() {
   }
 
   // =========================================================================
-  // 4. หน้าจอ DEFUSER : แผงตู้เซฟปลดชนวนสมบูรณ์แบบ
+  // 4. หน้าจอ DEFUSER
   // =========================================================================
   const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
   const currentKeyBits = keyBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
@@ -472,14 +484,13 @@ export default function BombWorkshopGame() {
         <div className="brass-screw absolute bottom-3 left-3" />
         <div className="brass-screw absolute bottom-3 right-3" />
 
-        {/* แถบหัวสถานะ */}
         <div className="flex justify-between items-center bg-black/70 border border-slate-700 rounded-xl px-4 py-2.5 mb-4">
           <div className="text-sm font-bold text-slate-300">
             ROOM: <span className="text-amber-400 font-mono text-xl ml-1 font-black">{roomId}</span>
           </div>
           <button
             onClick={() => { setRoomId(""); setRole("MENU"); }}
-            className="tactile-btn bg-slate-800 text-slate-200 text-xs px-3 py-1.5 rounded-lg border-slate-700"
+            className="tactile-btn bg-slate-800 text-slate-200 text-xs px-3 py-1.5 rounded-lg border-slate-700 cursor-pointer"
           >
             เมนูหลัก
           </button>
@@ -494,7 +505,7 @@ export default function BombWorkshopGame() {
         ) : (
           <div className="space-y-4">
             
-            {/* โมดูลบน: นาฬิกา 7-Segment + สัญญาณ Cipher + Key */}
+            {/* โมดูลข้อมูลบน */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
@@ -524,7 +535,7 @@ export default function BombWorkshopGame() {
               </div>
             </div>
 
-            {/* แผงถอดรหัสบิต XOR: 8 บิตตรงแนวกันแบบ Column-by-Column */}
+            {/* แผงถอดรหัสบิต XOR */}
             <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-4 sm:p-6">
               
               {/* แถบเลือกตัวอักษร */}
@@ -536,7 +547,7 @@ export default function BombWorkshopGame() {
                       <button
                         key={idx}
                         onClick={() => setActiveCharIndex(idx)}
-                        className={`tactile-btn px-3 py-1.5 text-xs font-mono rounded-lg ${
+                        className={`tactile-btn px-3 py-1.5 text-xs font-mono rounded-lg cursor-pointer ${
                           activeCharIndex === idx
                             ? "bg-amber-500 text-black border-amber-300"
                             : "bg-slate-800 text-slate-300 border-slate-700"
@@ -549,11 +560,14 @@ export default function BombWorkshopGame() {
                 </div>
 
                 <div className="text-sm font-bold">
-                  คำที่ถอดรหัสได้: <span className="text-2xl font-mono text-emerald-400 font-black ml-1">{currentDecodedWord}</span>
+                  คำที่ถอดรหัสได้ตอนนี้:{" "}
+                  <span className="text-2xl font-mono text-emerald-400 font-black ml-1 bg-black px-2 py-0.5 rounded border border-emerald-500/50">
+                    {currentDecodedWord}
+                  </span>
                 </div>
               </div>
 
-              {/* Grid 8 บิตล็อคคอลัมน์ตรงกันทุกแถว */}
+              {/* Grid 8 บิตตรงแนวกัน */}
               <div className="space-y-3 bg-black/60 p-3 sm:p-5 rounded-xl border border-slate-800">
                 
                 {/* 1. แถว Cipher Bits */}
@@ -602,14 +616,14 @@ export default function BombWorkshopGame() {
                 {/* ลูกศรชี้ลง Output */}
                 <div className="text-center py-0.5">
                   <span className="text-xs font-bold text-amber-400 animate-pulse">
-                    ↓ แตะปุ่มสวิตช์ด้านล่างเพื่อเปลี่ยนค่า (0 ⇄ 1) ให้ตรงกับผล XOR ↓
+                    ↓ แตะปุ่มด้านล่างเพื่อเปลี่ยนค่า (0 ⇄ 1) ให้ได้บิตที่ถูกต้อง ↓
                   </span>
                 </div>
 
                 {/* 3. แถวปุ่มแตะสลับบิต (Output) */}
                 <div>
                   <div className="text-xs font-bold text-emerald-400 mb-1 flex justify-between">
-                    <span>OUTPUT (ผลลัพธ์ถอดรหัส):</span>
+                    <span>OUTPUT บิตตัวที่ {activeCharIndex + 1} (ได้ตัว: &apos;{currentDecodedWord[activeCharIndex] || "?"}&apos;):</span>
                     <span className="text-slate-400 text-[10px]">แตะเพื่อสลับบิต</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-2">
@@ -639,18 +653,18 @@ export default function BombWorkshopGame() {
                   : "bg-slate-800 text-slate-600 cursor-not-allowed border-slate-700"
               }`}
             >
-              ✂️ CUT CIRCUIT / UNLOCK VAULT (ปลดชนวนระเบิด)
+              ✂️ CUT CIRCUIT / UNLOCK VAULT (ส่งคำตอบถอดรหัส)
             </button>
 
-            {/* แจ้งผลชนะ/แพ้ */}
+            {/* แจ้งผลชนะ/แพ้ พร้อมแสดงคำตอบที่ระบบรับไป */}
             {gameStatus === "DEFUSED" && (
               <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-lg">
-                ✓ BOMB DEFUSED! ปลดชนวนตู้เซฟสำเร็จ!
+                ✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง (&quot;{submittedWordResult}&quot;)
               </div>
             )}
             {gameStatus === "EXPLODED" && (
               <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-lg animate-bounce">
-                💥 BOOM! ระเบิดทำงาน ถอดรหัสผิดพลาดหรือหมดเวลา!
+                💥 BOOM! ระเบิดทำงาน คำตอบที่ส่ง (&quot;{submittedWordResult || currentDecodedWord}&quot;) ไม่ถูกต้อง หรือหมดเวลา!
               </div>
             )}
 
