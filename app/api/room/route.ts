@@ -1,14 +1,43 @@
 import { NextResponse } from "next/server";
+import { promises as fs } from "fs";
+import path from "path";
 
-const globalRooms = globalThis as unknown as {
-  __GAME_ROOMS__?: Record<string, any>;
-};
+const TMP_DIR = path.join("/tmp", "xor_bomb_rooms");
 
-if (!globalRooms.__GAME_ROOMS__) {
-  globalRooms.__GAME_ROOMS__ = {};
+// In-Memory Fast Cache เลเยอร์แรก เพื่อลด I/O Disk
+const memoryCache: Record<string, any> = {};
+
+async function ensureDir() {
+  try {
+    await fs.mkdir(TMP_DIR, { recursive: true });
+  } catch {}
+}
+ensureDir();
+
+// บันทึกสถานะห้องทั้ง Memory และ Disk แบบ Asynchronous
+async function saveRoom(roomId: string, data: any) {
+  memoryCache[roomId] = data;
+  try {
+    const filePath = path.join(TMP_DIR, `${roomId}.json`);
+    await fs.writeFile(filePath, JSON.stringify(data), "utf8");
+  } catch (err) {
+    console.error("Save room disk error:", err);
+  }
 }
 
-const rooms = globalRooms.__GAME_ROOMS__;
+// อ่านสถานะห้องจาก Memory ก่อน หากไม่มีค่อยดึงจาก Disk
+async function getRoom(roomId: string) {
+  if (memoryCache[roomId]) return memoryCache[roomId];
+  try {
+    const filePath = path.join(TMP_DIR, `${roomId}.json`);
+    const content = await fs.readFile(filePath, "utf8");
+    const data = JSON.parse(content);
+    memoryCache[roomId] = data;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -18,135 +47,95 @@ const noCacheHeaders = {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const roomId = searchParams.get("roomId")?.toUpperCase();
+  const roomId = searchParams.get("roomId")?.toUpperCase().trim();
 
-  if (!roomId || !rooms[roomId]) {
-    return NextResponse.json(
-      { error: "Room not found" },
-      { status: 404, headers: noCacheHeaders }
-    );
+  if (!roomId) {
+    return NextResponse.json({ error: "Missing roomId" }, { status: 400, headers: noCacheHeaders });
   }
 
-  return NextResponse.json(rooms[roomId], { headers: noCacheHeaders });
+  const room = await getRoom(roomId);
+  if (!room) {
+    return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
+  }
+
+  return NextResponse.json(room, { headers: noCacheHeaders });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { action, roomId: rawRoomId, data } = body;
-    const roomId = rawRoomId?.toUpperCase();
+    const roomId = rawRoomId?.toUpperCase().trim();
 
     if (!roomId) {
-      return NextResponse.json(
-        { error: "Missing roomId" },
-        { status: 400, headers: noCacheHeaders }
-      );
+      return NextResponse.json({ error: "Missing roomId" }, { status: 400, headers: noCacheHeaders });
     }
 
+    let room = await getRoom(roomId);
+
     if (action === "CREATE") {
-      rooms[roomId] = {
+      room = {
         id: roomId,
         status: "LOBBY",
         defuserJoined: false,
-        targetWord: "",
-        secretKey: "",
-        cipherHex: "",
-        timeLimit: 120,
+        targetWord: data?.targetWord || "CAT",
+        secretKey: data?.secretKey || "BAT",
+        cipherHex: data?.cipherHex || "",
+        timeLimit: Number(data?.timeLimit) || 120,
         startTime: null,
         lastUpdate: Date.now(),
       };
-      return NextResponse.json(
-        { success: true, room: rooms[roomId] },
-        { headers: noCacheHeaders }
-      );
+      await saveRoom(roomId, room);
+      return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
     if (action === "JOIN") {
-      if (!rooms[roomId]) {
-        return NextResponse.json(
-          { error: "Room not found" },
-          { status: 404, headers: noCacheHeaders }
-        );
+      if (!room) {
+        return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
       }
-      rooms[roomId].defuserJoined = true;
-      rooms[roomId].lastUpdate = Date.now();
-      return NextResponse.json(
-        { success: true, room: rooms[roomId] },
-        { headers: noCacheHeaders }
-      );
+      room.defuserJoined = true;
+      room.lastUpdate = Date.now();
+      await saveRoom(roomId, room);
+      return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
     if (action === "ARM") {
-      if (!rooms[roomId]) {
-        return NextResponse.json(
-          { error: "Room not found" },
-          { status: 404, headers: noCacheHeaders }
-        );
+      if (!room) {
+        return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
       }
-      rooms[roomId] = {
-        ...rooms[roomId],
+      room = {
+        ...room,
         ...data,
         status: "PLAYING",
         startTime: Date.now(),
         lastUpdate: Date.now(),
       };
-      return NextResponse.json(
-        { success: true, room: rooms[roomId] },
-        { headers: noCacheHeaders }
-      );
+      await saveRoom(roomId, room);
+      return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
-    // จุดตรวจคำตอบ: คลีนช่องว่างและแปลงเป็นตัวพิมพ์ใหญ่ทั้งสองฝั่งก่อนเทียบ
-    if (action === "SUBMIT") {
-      if (!rooms[roomId]) {
-        return NextResponse.json(
-          { error: "Room not found" },
-          { status: 404, headers: noCacheHeaders }
-        );
+    if (action === "SET_STATUS") {
+      if (!room) {
+        return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
       }
-      
-      const userAnswer = String(data.answer || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-      const correctAnswer = String(rooms[roomId].targetWord || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-
-      const isCorrect = userAnswer === correctAnswer;
-      rooms[roomId].status = isCorrect ? "DEFUSED" : "EXPLODED";
-      rooms[roomId].lastUpdate = Date.now();
-
-      return NextResponse.json(
-        { 
-          success: true, 
-          room: rooms[roomId], 
-          isCorrect,
-          userAnswer,
-          correctAnswer 
-        },
-        { headers: noCacheHeaders }
-      );
+      room.status = data?.status || "EXPLODED";
+      room.lastUpdate = Date.now();
+      await saveRoom(roomId, room);
+      return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
     if (action === "EXPLODE") {
-      if (!rooms[roomId]) {
-        return NextResponse.json(
-          { error: "Room not found" },
-          { status: 404, headers: noCacheHeaders }
-        );
+      if (!room) {
+        return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
       }
-      rooms[roomId].status = "EXPLODED";
-      rooms[roomId].lastUpdate = Date.now();
-      return NextResponse.json(
-        { success: true, room: rooms[roomId] },
-        { headers: noCacheHeaders }
-      );
+      room.status = "EXPLODED";
+      room.lastUpdate = Date.now();
+      await saveRoom(roomId, room);
+      return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
-    return NextResponse.json(
-      { error: "Invalid action" },
-      { status: 400, headers: noCacheHeaders }
-    );
+    return NextResponse.json({ error: "Invalid action" }, { status: 400, headers: noCacheHeaders });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500, headers: noCacheHeaders }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500, headers: noCacheHeaders });
   }
 }

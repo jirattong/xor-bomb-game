@@ -1,15 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 const charTo8Bits = (char: string): number[] => {
   if (!char) return [0, 0, 0, 0, 0, 0, 0, 0];
-  return char
-    .charCodeAt(0)
-    .toString(2)
-    .padStart(8, "0")
-    .split("")
-    .map(Number);
+  return char.charCodeAt(0).toString(2).padStart(8, "0").split("").map(Number);
 };
 
 const hexByteTo8Bits = (hexByte: string): number[] => {
@@ -41,9 +36,11 @@ export default function BombWorkshopGame() {
   const [defuserJoined, setDefuserJoined] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // จุดเก็บเวลาเริ่มเกม เพื่อใช้คำนวณเวลาอิสระบนเครื่อง
+  // Refs ป้องกันปัญหา Race Condition
   const serverStartTimeRef = useRef<number | null>(null);
   const serverTimeLimitRef = useRef<number>(120);
+  const preloadedTargetWordRef = useRef<string>("");
+  const hasTriggeredExplodeRef = useRef<boolean>(false);
 
   // Defuser Gameplay (Bit Toggling)
   const [defuserKey, setDefuserKey] = useState("");
@@ -55,8 +52,28 @@ export default function BombWorkshopGame() {
   const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
   const [submittedWordResult, setSubmittedWordResult] = useState("");
 
-  // แสดงผลคำที่ถอดรหัสได้แบบ Real-time
-  const currentDecodedWord = decodeBitsToWord(userBitsMatrix);
+  // Real-time Decoded Word Memoization
+  const currentDecodedWord = useMemo(() => decodeBitsToWord(userBitsMatrix), [userBitsMatrix]);
+
+  // การสั่นตอบสนองบนมือถือ (Haptic Feedback)
+  const triggerHaptic = (ms: number = 35) => {
+    if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
+      window.navigator.vibrate(ms);
+    }
+  };
+
+  const triggerExplode = useCallback(async () => {
+    if (hasTriggeredExplodeRef.current) return;
+    hasTriggeredExplodeRef.current = true;
+    setGameStatus("EXPLODED");
+    triggerHaptic(200);
+
+    await fetch("/api/room", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "EXPLODE", roomId }),
+    }).catch(() => {});
+  }, [roomId]);
 
   // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
@@ -92,6 +109,7 @@ export default function BombWorkshopGame() {
       });
 
       if (res.ok) {
+        hasTriggeredExplodeRef.current = false;
         setRoomId(newId);
         setTargetWord(t);
         setSecretKey(k);
@@ -122,6 +140,7 @@ export default function BombWorkshopGame() {
       });
 
       if (res.ok) {
+        hasTriggeredExplodeRef.current = false;
         setRoomId(code);
         setRole("DEFUSER");
       } else {
@@ -132,7 +151,7 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // 3. ระบบนับเวลาอิสระบนเครื่องผู้เล่น (Smooth Local Timer ไม่ค้าง ไม่กระโดด)
+  // 3. Smooth Local Countdown Timer
   useEffect(() => {
     if (gameStatus !== "PLAYING") return;
 
@@ -146,14 +165,15 @@ export default function BombWorkshopGame() {
           triggerExplode();
         }
       }
-    }, 250); // คำนวณความถี่สูงเพื่อให้เวลานิ่งและลื่นไหลที่สุด
+    }, 200);
 
     return () => clearInterval(timer);
-  }, [gameStatus]);
+  }, [gameStatus, triggerExplode]);
 
-  // 4. Polling ตรวจสอบสถานะเกมจาก Server
+  // 4. Polling ตรวจสอบสถานะเกม (หยุดทันทีเมื่อเกมจบเพื่อลดภาระเครื่องและเซิร์ฟเวอร์)
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
+    if (gameStatus === "DEFUSED" || gameStatus === "EXPLODED") return;
 
     let isMounted = true;
     let timeoutId: any = null;
@@ -174,7 +194,10 @@ export default function BombWorkshopGame() {
             setDefuserKey(data.secretKey);
             setCipherHex(data.cipherHex);
 
-            // อัปเดตจุดอ้างอิงเวลาของ Server ให้เครื่อง Client ใช้นับต่อเอง
+            if (data.targetWord) {
+              preloadedTargetWordRef.current = data.targetWord;
+            }
+
             if (data.startTime) {
               serverStartTimeRef.current = data.startTime;
               serverTimeLimitRef.current = data.timeLimit;
@@ -199,7 +222,7 @@ export default function BombWorkshopGame() {
       } catch (err) {
         console.error("Polling error:", err);
       } finally {
-        if (isMounted) {
+        if (isMounted && gameStatus !== "DEFUSED" && gameStatus !== "EXPLODED") {
           timeoutId = setTimeout(pollRoom, 1000);
         }
       }
@@ -211,7 +234,7 @@ export default function BombWorkshopGame() {
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [roomId, role, cipherBitsMatrix.length]);
+  }, [roomId, role, gameStatus, cipherBitsMatrix.length]);
 
   // ผู้ตั้งรหัสเริ่มนับถอยหลัง
   const handleArmBomb = async () => {
@@ -236,6 +259,7 @@ export default function BombWorkshopGame() {
   // แตะเพื่อสลับบิต (0 ⇄ 1)
   const toggleBit = (bitIndex: number) => {
     if (gameStatus !== "PLAYING") return;
+    triggerHaptic(25);
     setUserBitsMatrix((prev) => {
       const next = prev.map((row) => [...row]);
       next[activeCharIndex][bitIndex] = next[activeCharIndex][bitIndex] === 0 ? 1 : 0;
@@ -243,34 +267,29 @@ export default function BombWorkshopGame() {
     });
   };
 
-  // กดยืนยันตัดวงจร
-  const handleExecuteDefuse = async () => {
+  // ⚡ ตรวจคำตอบทันที 0ms (Zero Latency Verification)
+  const handleExecuteDefuse = () => {
     if (gameStatus !== "PLAYING") return;
-    
-    const finalAnswer = decodeBitsToWord(userBitsMatrix).trim().toUpperCase();
+
+    const finalAnswer = decodeBitsToWord(userBitsMatrix).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const expectedWord = preloadedTargetWordRef.current.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     setSubmittedWordResult(finalAnswer);
 
-    try {
-      await fetch("/api/room", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "SUBMIT",
-          roomId,
-          data: { answer: finalAnswer },
-        }),
-      });
-    } catch (e) {
-      alert("เกิดข้อผิดพลาดในการส่งคำตอบ");
-    }
-  };
+    const isCorrect = finalAnswer === expectedWord;
+    const nextStatus = isCorrect ? "DEFUSED" : "EXPLODED";
 
-  const triggerExplode = async () => {
-    await fetch("/api/room", {
+    triggerHaptic(isCorrect ? 80 : 250);
+    setGameStatus(nextStatus);
+
+    fetch("/api/room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "EXPLODE", roomId }),
-    });
+      body: JSON.stringify({
+        action: "SET_STATUS",
+        roomId,
+        data: { status: nextStatus },
+      }),
+    }).catch((e) => console.error("Sync status error", e));
   };
 
   const formatTimer = (s: number) => {
@@ -532,7 +551,6 @@ export default function BombWorkshopGame() {
         ) : (
           <div className="space-y-4">
             
-            {/* กล่องข้อมูลบน */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
@@ -562,10 +580,8 @@ export default function BombWorkshopGame() {
               </div>
             </div>
 
-            {/* แผงถอดรหัสบิต XOR */}
             <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-4 sm:p-6">
               
-              {/* แถบเลือกตัวอักษร */}
               <div className="flex flex-wrap justify-between items-center border-b border-slate-700 pb-3 mb-4 gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-300">เลือกตัวอักษร:</span>
@@ -573,7 +589,10 @@ export default function BombWorkshopGame() {
                     {userBitsMatrix.map((_, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setActiveCharIndex(idx)}
+                        onClick={() => {
+                          triggerHaptic(20);
+                          setActiveCharIndex(idx);
+                        }}
                         className={`tactile-btn px-3 py-1.5 text-xs font-mono rounded-lg cursor-pointer ${
                           activeCharIndex === idx
                             ? "bg-amber-500 text-black border-amber-300"
@@ -586,7 +605,6 @@ export default function BombWorkshopGame() {
                   </div>
                 </div>
 
-                {/* การแสดงผลคำที่ถอดรหัสได้แบบ Real-time ตามที่คุณชอบ */}
                 <div className="text-sm font-bold">
                   คำที่ถอดรหัสได้ตอนนี้:{" "}
                   <span className="text-2xl font-mono text-emerald-400 font-black ml-1 bg-black px-2 py-0.5 rounded border border-emerald-500/50">
@@ -595,7 +613,6 @@ export default function BombWorkshopGame() {
                 </div>
               </div>
 
-              {/* Grid 8 บิตตรงแนวกัน */}
               <div className="space-y-3 bg-black/60 p-3 sm:p-5 rounded-xl border border-slate-800">
                 
                 {/* 1. แถว Cipher Bits */}
@@ -616,7 +633,6 @@ export default function BombWorkshopGame() {
                   </div>
                 </div>
 
-                {/* สัญลักษณ์ XOR */}
                 <div className="text-center py-0.5">
                   <span className="bg-purple-900/80 border border-purple-500/50 text-purple-200 font-mono text-xs font-bold px-3 py-0.5 rounded-full">
                     ↓ XOR (เหมือนกันได้ 0, ต่างกันได้ 1) ↓
@@ -641,7 +657,6 @@ export default function BombWorkshopGame() {
                   </div>
                 </div>
 
-                {/* ลูกศรชี้ลง Output */}
                 <div className="text-center py-0.5">
                   <span className="text-xs font-bold text-amber-400 animate-pulse">
                     ↓ แตะปุ่มด้านล่างเพื่อเปลี่ยนค่า (0 ⇄ 1) ให้ได้บิตที่ถูกต้อง ↓
