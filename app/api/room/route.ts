@@ -1,42 +1,43 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
 
-const TMP_DIR = path.join("/tmp", "xor_bomb_rooms");
-
+// Fallback In-memory
 const globalObj = globalThis as unknown as {
   __GAME_ROOMS_CACHE__?: Record<string, any>;
 };
-
 if (!globalObj.__GAME_ROOMS_CACHE__) {
   globalObj.__GAME_ROOMS_CACHE__ = {};
 }
+const localCache = globalObj.__GAME_ROOMS_CACHE__;
 
-const memoryRooms = globalObj.__GAME_ROOMS_CACHE__;
+// ใช้ Global Storage Relay สาธารณะความเร็วสูง เพื่อให้ทุกเครื่องทั่วโลกเห็นข้อมูลเดียวกัน
+const RELAY_BASE = "https://api.restful-api.dev/objects";
 
-// บันทึก RAM ก่อนเสมอ เพื่อให้คำสั่ง GET ได้ข้อมูลล่าสุดทันทีในเสี้ยววินาที
-async function saveRoomToStorage(roomId: string, data: any) {
-  memoryRooms[roomId] = data;
+async function fetchFromGlobalRelay(roomId: string) {
   try {
-    await fs.mkdir(TMP_DIR, { recursive: true });
-    const filePath = path.join(TMP_DIR, `${roomId}.json`);
-    await fs.writeFile(filePath, JSON.stringify(data), "utf8");
+    const res = await fetch(`https://kvstore-free.deno.dev/get/${roomId}`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.id) {
+        localCache[roomId] = data;
+        return data;
+      }
+    }
   } catch {}
+  return localCache[roomId] || null;
 }
 
-async function loadRoomFromStorage(roomId: string) {
-  if (memoryRooms[roomId]) {
-    return memoryRooms[roomId];
-  }
+async function saveToGlobalRelay(roomId: string, data: any) {
+  localCache[roomId] = data;
   try {
-    const filePath = path.join(TMP_DIR, `${roomId}.json`);
-    const content = await fs.readFile(filePath, "utf8");
-    const data = JSON.parse(content);
-    memoryRooms[roomId] = data;
-    return data;
-  } catch {
-    return null;
-  }
+    await fetch(`https://kvstore-free.deno.dev/set/${roomId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      cache: "no-store",
+    });
+  } catch {}
 }
 
 const noCacheHeaders = {
@@ -55,8 +56,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing roomId" }, { status: 400, headers: noCacheHeaders });
   }
 
-  // ดึงจาก RAM โดยตรงเพื่อความเร็วระดับ < 5ms
-  const room = memoryRooms[roomId] || (await loadRoomFromStorage(roomId));
+  const room = await fetchFromGlobalRelay(roomId);
   if (!room) {
     return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
   }
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing roomId" }, { status: 400, headers: noCacheHeaders });
     }
 
-    let room = memoryRooms[roomId] || (await loadRoomFromStorage(roomId));
+    let room = await fetchFromGlobalRelay(roomId);
 
     if (action === "CREATE") {
       room = {
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         startTime: null,
         lastUpdate: Date.now(),
       };
-      await saveRoomToStorage(roomId, room);
+      await saveToGlobalRelay(roomId, room);
       return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       }
       room.defuserJoined = true;
       room.lastUpdate = Date.now();
-      await saveRoomToStorage(roomId, room);
+      await saveToGlobalRelay(roomId, room);
       return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
@@ -113,23 +113,17 @@ export async function POST(request: Request) {
         startTime: Date.now(),
         lastUpdate: Date.now(),
       };
-      await saveRoomToStorage(roomId, room);
+      await saveToGlobalRelay(roomId, room);
       return NextResponse.json({ success: true, room }, { headers: noCacheHeaders });
     }
 
-    // ⚡ Ultra-Fast Status Sync: อัปเดต RAM ทันทีเพื่อให้ GET รอบถัดไปเห็นผลทันที
     if (action === "SET_STATUS") {
       if (!room) {
         return NextResponse.json({ error: "Room not found" }, { status: 404, headers: noCacheHeaders });
       }
       room.status = data?.status || "EXPLODED";
       room.lastUpdate = Date.now();
-      
-      // อัปเดต RAM ทันที
-      memoryRooms[roomId] = room;
-      // เขียน Disk แบบ Background ไม่ต้องรอ await
-      saveRoomToStorage(roomId, room);
-
+      await saveToGlobalRelay(roomId, room);
       return NextResponse.json({ success: true, room, status: room.status }, { headers: noCacheHeaders });
     }
 

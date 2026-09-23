@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { rtdb } from "@/lib/firebase";
+import { ref, set, update, onValue, off } from "firebase/database";
 
 const SAFE_ROOM_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const generateSafeRoomId = (len = 4): string => {
@@ -53,9 +55,9 @@ export default function BombWorkshopGame() {
   const [cipherHex, setCipherHex] = useState("");
   const [cipherBitsMatrix, setCipherBitsMatrix] = useState<number[][]>([]);
   const [keyBitsMatrix, setKeyBitsMatrix] = useState<number[][]>([]);
-  
+
   const [activeCharIndex, setActiveCharIndex] = useState(0);
-  const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0,0,0,0,0,0,0,0]]);
+  const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0, 0, 0, 0, 0, 0, 0, 0]]);
   const [submittedWordResult, setSubmittedWordResult] = useState("");
 
   const currentDecodedWord = useMemo(() => decodeBitsToWord(userBitsMatrix), [userBitsMatrix]);
@@ -66,61 +68,60 @@ export default function BombWorkshopGame() {
     }
   };
 
+  // Firebase Realtime Listener
   useEffect(() => {
-    if (role === "OPERATOR_SETUP") {
-      fetch(`/api/room?_warmup=${Date.now()}`, { cache: "no-store" }).catch(() => {});
-    }
-  }, [role]);
+    if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
-  // ⚡ Dual-Channel Sync: ยิงทั้ง fetch ทันที + Retry ถี่ทุก 250ms เพื่อให้ Operator เห็นผลพร้อมกัน
-  const syncStatusToServer = useCallback((status: "DEFUSED" | "EXPLODED") => {
-    const payload = JSON.stringify({
-      action: "SET_STATUS",
-      roomId,
-      data: { status },
-    });
+    const roomRef = ref(rtdb, `rooms/${roomId}`);
 
-    // ช่องทางที่ 1: Beacon API สำหรับส่งทันทีโดยไม่ติดคิว
-    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: "application/json" });
-      navigator.sendBeacon("/api/room", blob);
-    }
+    const unsubscribe = onValue(roomRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
 
-    // ช่องทางที่ 2: Fetch พร้อม Rapid Retry
-    let attempts = 0;
-    const maxAttempts = 5;
+      setGameStatus(data.status);
+      setDefuserJoined(Boolean(data.defuserJoined));
 
-    const send = async () => {
-      try {
-        const res = await fetch("/api/room", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-          cache: "no-store",
-        });
-        if (!res.ok && attempts < maxAttempts) {
-          attempts++;
-          setTimeout(send, 250);
+      if (data.status === "PLAYING") {
+        setDefuserKey(data.secretKey || "");
+        setCipherHex(data.cipherHex || "");
+
+        if (data.targetWord) preloadedTargetWordRef.current = data.targetWord;
+        if (data.startTime) {
+          serverStartTimeRef.current = data.startTime;
+          serverTimeLimitRef.current = data.timeLimit || 120;
         }
-      } catch {
-        if (attempts < maxAttempts) {
-          attempts++;
-          setTimeout(send, 250);
+
+        if (data.cipherHex && cipherBitsMatrix.length === 0) {
+          const hexStr = data.cipherHex;
+          const cMatrix: number[][] = [];
+          for (let i = 0; i < hexStr.length; i += 2) {
+            const byteHex = hexStr.substr(i, 2);
+            cMatrix.push(hexByteTo8Bits(byteHex));
+          }
+          setCipherBitsMatrix(cMatrix);
+          const kMatrix = (data.secretKey || "").split("").map((c: string) => charTo8Bits(c));
+          setKeyBitsMatrix(kMatrix);
+          setUserBitsMatrix(cMatrix.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
         }
       }
+    });
+
+    return () => {
+      off(roomRef);
     };
+  }, [roomId, role, cipherBitsMatrix.length]);
 
-    send();
-  }, [roomId]);
-
-  const triggerExplode = useCallback(() => {
+  const triggerExplode = useCallback(async () => {
     if (hasTriggeredExplodeRef.current) return;
     hasTriggeredExplodeRef.current = true;
     setGameStatus("EXPLODED");
     triggerHaptic(200);
-    syncStatusToServer("EXPLODED");
-  }, [syncStatusToServer]);
 
+    const roomRef = ref(rtdb, `rooms/${roomId}`);
+    await update(roomRef, { status: "EXPLODED" }).catch(() => {});
+  }, [roomId]);
+
+  // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
@@ -138,61 +139,51 @@ export default function BombWorkshopGame() {
     }
 
     try {
-      const res = await fetch("/api/room", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          action: "CREATE", 
-          roomId: newId,
-          data: {
-            targetWord: t,
-            secretKey: k,
-            cipherHex: hex,
-            timeLimit: Number(timeLimit) || 120
-          }
-        }),
+      const roomRef = ref(rtdb, `rooms/${newId}`);
+      await set(roomRef, {
+        id: newId,
+        status: "LOBBY",
+        defuserJoined: false,
+        targetWord: t,
+        secretKey: k,
+        cipherHex: hex,
+        timeLimit: Number(timeLimit) || 120,
+        startTime: null,
       });
 
-      if (res.ok) {
-        hasTriggeredExplodeRef.current = false;
-        setRoomId(newId);
-        setTargetWord(t);
-        setSecretKey(k);
-        setCipherHex(hex);
-        setRole("OPERATOR_LOBBY");
-      } else {
-        alert("ไม่สามารถสร้างห้องได้ กรุณาลองใหม่อีกครั้ง");
-      }
-    } catch {
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      hasTriggeredExplodeRef.current = false;
+      setRoomId(newId);
+      setTargetWord(t);
+      setSecretKey(k);
+      setCipherHex(hex);
+      setRole("OPERATOR_LOBBY");
+    } catch (error) {
+      console.error("Firebase create error:", error);
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อ Firebase กรุณาตรวจสอบ Rules");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // 2. ผู้กู้ระเบิดจอยเข้าห้อง
   const handleJoinRoom = async () => {
     const code = inputRoomId.replace(/[^A-Za-z0-9]/g, "").trim().toUpperCase();
     if (!code || code.length !== 4) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
 
     try {
-      const res = await fetch("/api/room", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "JOIN", roomId: code }),
-      });
+      const roomRef = ref(rtdb, `rooms/${code}`);
+      await update(roomRef, { defuserJoined: true });
 
-      if (res.ok) {
-        hasTriggeredExplodeRef.current = false;
-        setRoomId(code);
-        setRole("DEFUSER");
-      } else {
-        alert("ไม่พบรหัสห้องนี้ กรุณาตรวจสอบอีกครั้ง");
-      }
-    } catch {
-      alert("เชื่อมต่อเซิร์ฟเวอร์ขัดข้อง");
+      hasTriggeredExplodeRef.current = false;
+      setRoomId(code);
+      setRole("DEFUSER");
+    } catch (error) {
+      console.error("Firebase join error:", error);
+      alert("ไม่พบรหัสห้อง หรือเชื่อมต่อขัดข้อง");
     }
   };
 
+  // Local Countdown Timer
   useEffect(() => {
     if (gameStatus !== "PLAYING") return;
     const timer = setInterval(() => {
@@ -206,79 +197,14 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
-  // ⚡ Turbo Polling: เมื่ออยู่ในสถานะ PLAYING ให้ยิงเช็คถี่ระดับ 250ms เพื่อให้เห็นผลพร้อมกันเสี้ยววินาที
-  useEffect(() => {
-    if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
-
-    let isMounted = true;
-    let timeoutId: any = null;
-
-    const pollRoom = async () => {
-      try {
-        const nonce = Math.random().toString(36).substring(7);
-        const res = await fetch(`/api/room?roomId=${roomId}&_nonce=${nonce}&_t=${Date.now()}`, {
-          cache: "no-store",
-        });
-
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          setGameStatus(data.status);
-          setDefuserJoined(Boolean(data.defuserJoined));
-
-          if (data.status === "PLAYING") {
-            setDefuserKey(data.secretKey);
-            setCipherHex(data.cipherHex);
-
-            if (data.targetWord) preloadedTargetWordRef.current = data.targetWord;
-            if (data.startTime) {
-              serverStartTimeRef.current = data.startTime;
-              serverTimeLimitRef.current = data.timeLimit;
-            }
-
-            if (data.cipherHex && cipherBitsMatrix.length === 0) {
-              const hexStr = data.cipherHex;
-              const cMatrix: number[][] = [];
-              for (let i = 0; i < hexStr.length; i += 2) {
-                const byteHex = hexStr.substr(i, 2);
-                cMatrix.push(hexByteTo8Bits(byteHex));
-              }
-              setCipherBitsMatrix(cMatrix);
-              const kMatrix = data.secretKey.split("").map((c: string) => charTo8Bits(c));
-              setKeyBitsMatrix(kMatrix);
-              setUserBitsMatrix(cMatrix.map(() => [0, 0, 0, 0, 0, 0, 0, 0]));
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Polling error:", err);
-      } finally {
-        if (isMounted) {
-          // ถ้ากำลังเล่นอยู่ Polling จะเร็วเป็นพิเศษ (250ms) เมื่อจบเกมจะปรับเป็น 1000ms
-          const intervalTime = gameStatus === "PLAYING" ? 250 : 1000;
-          timeoutId = setTimeout(pollRoom, intervalTime);
-        }
-      }
-    };
-
-    pollRoom();
-
-    return () => {
-      isMounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [roomId, role, gameStatus, cipherBitsMatrix.length]);
-
+  // สั่งเริ่มนับถอยหลัง
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
 
-    await fetch("/api/room", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "ARM",
-        roomId,
-        data: { targetWord, secretKey, cipherHex, timeLimit },
-      }),
+    const roomRef = ref(rtdb, `rooms/${roomId}`);
+    await update(roomRef, {
+      status: "PLAYING",
+      startTime: Date.now(),
     });
   };
 
@@ -292,7 +218,8 @@ export default function BombWorkshopGame() {
     });
   };
 
-  const handleExecuteDefuse = () => {
+  // ตรวจคำตอบและส่งผลลัพธ์ผ่าน Firebase
+  const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
 
     const finalAnswer = decodeBitsToWord(userBitsMatrix).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -305,8 +232,8 @@ export default function BombWorkshopGame() {
     triggerHaptic(isCorrect ? 80 : 250);
     setGameStatus(nextStatus);
 
-    // ยิงผลลัพธ์ผ่านช่องทางด่วน
-    syncStatusToServer(nextStatus);
+    const roomRef = ref(rtdb, `rooms/${roomId}`);
+    await update(roomRef, { status: nextStatus }).catch(() => {});
   };
 
   const formatTimer = (s: number) => {
@@ -546,9 +473,9 @@ export default function BombWorkshopGame() {
   // 4. หน้าจอ DEFUSER
   // =========================================================================
   const totalChars = userBitsMatrix.length;
-  const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
-  const currentKeyBits = keyBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
-  const currentUserBits = userBitsMatrix[activeCharIndex] || [0,0,0,0,0,0,0,0];
+  const currentCipherBits = cipherBitsMatrix[activeCharIndex] || [0, 0, 0, 0, 0, 0, 0, 0];
+  const currentKeyBits = keyBitsMatrix[activeCharIndex] || [0, 0, 0, 0, 0, 0, 0, 0];
+  const currentUserBits = userBitsMatrix[activeCharIndex] || [0, 0, 0, 0, 0, 0, 0, 0];
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6">
@@ -578,7 +505,6 @@ export default function BombWorkshopGame() {
           </div>
         ) : (
           <div className="space-y-4">
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="vault-module p-4 flex flex-col items-center justify-center">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">
@@ -609,36 +535,8 @@ export default function BombWorkshopGame() {
             </div>
 
             <div className="vault-module p-4 sm:p-6 border-2 border-slate-600">
-              
-              <div className="flex flex-wrap justify-between items-center border-b border-slate-700 pb-3 mb-4 gap-2">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-amber-500 text-black text-xs font-black px-3 py-1 rounded-md uppercase tracking-wider shadow">
-                      {`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono hidden sm:inline">
-                      {`[ SLOT ${activeCharIndex + 1} OF ${totalChars} ]`}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2 mt-1 sm:mt-0">
-                    {userBitsMatrix.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => { triggerHaptic(20); setActiveCharIndex(idx); }}
-                        className={`tactile-btn px-4 py-1.5 text-sm font-mono cursor-pointer flex items-center gap-1.5 ${
-                          activeCharIndex === idx
-                            ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_14px_#f59e0b]"
-                            : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${activeCharIndex === idx ? "bg-black animate-ping" : "bg-slate-500"}`} />
-                        <span>{`ตัวที่ ${idx + 1}`}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+              {/* แถบด้านบน: แสดงคำที่ถอดรหัสได้ */}
+              <div className="flex justify-end items-center border-b border-slate-700 pb-3 mb-4">
                 <div className="text-base font-bold flex items-center">
                   <span className="text-slate-300 text-xs sm:text-sm mr-2">คำที่ถอดรหัสได้:</span>
                   <div className="bg-black px-3 py-1 rounded-xl border border-slate-700 flex gap-1 font-mono text-2xl font-black shadow-inner">
@@ -658,12 +556,12 @@ export default function BombWorkshopGame() {
                 </div>
               </div>
 
+              {/* แผงแสดงบิต 8 หลัก */}
               <div className="space-y-4 bg-black/70 p-4 sm:p-6 rounded-2xl border-2 border-slate-800">
-                
                 {/* 1. แถว Cipher Bits */}
                 <div>
                   <div className="text-xs font-bold text-amber-400 mb-1.5 flex justify-between">
-                    <span>{`INPUT A (Cipher บิต ตำแหน่งที่ ${activeCharIndex + 1} จาก ${totalChars}):`}</span>
+                    <span>{`INPUT A (Cipher บิต ตัวที่ ${activeCharIndex + 1} จาก ${totalChars}):`}</span>
                     <span className="text-slate-500 text-[11px]">8 BITS</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-3">
@@ -681,7 +579,7 @@ export default function BombWorkshopGame() {
                 {/* 2. แถว Key Bits */}
                 <div>
                   <div className="text-xs font-bold text-sky-400 mb-1.5 flex justify-between">
-                    <span>{`INPUT B (Key '${defuserKey[activeCharIndex] || "?"}' บิต ตำแหน่งที่ ${activeCharIndex + 1}):`}</span>
+                    <span>{`INPUT B (Key '${defuserKey[activeCharIndex] || "?"}' บิต ตัวที่ ${activeCharIndex + 1}):`}</span>
                     <span className="text-slate-500 text-[11px]">8 BITS</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-3">
@@ -698,14 +596,14 @@ export default function BombWorkshopGame() {
 
                 <div className="text-center py-0.5">
                   <span className="text-xs font-bold text-amber-400 animate-pulse">
-                    {`↓ กำลังแก้ไขบิตตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars} (0 ⇄ 1) ↓`}
+                    {`↓ กำลังแก้ไขบิตตัวที่ ${activeCharIndex + 1} / ${totalChars} (0 ⇄ 1) ↓`}
                   </span>
                 </div>
 
                 {/* 3. แถวปุ่มแตะสลับบิต (Output) */}
                 <div>
                   <div className="text-xs font-bold text-emerald-400 mb-2 flex justify-between items-center">
-                    <span>{`OUTPUT บิตตำแหน่งที่ ${activeCharIndex + 1} (ได้ตัวอักษร: '${currentDecodedWord[activeCharIndex] || "?"}'):`}</span>
+                    <span>{`OUTPUT บิตตัวที่ ${activeCharIndex + 1} (ได้ตัวอักษร: '${currentDecodedWord[activeCharIndex] || "?"}'):`}</span>
                     <span className="text-slate-400 text-[11px]">สวิตช์สัมผัส 3D</span>
                   </div>
                   <div className="grid grid-cols-8 gap-1.5 sm:gap-3">
@@ -723,16 +621,41 @@ export default function BombWorkshopGame() {
                     ))}
                   </div>
                 </div>
-
               </div>
 
-              {/* คำใบ้ XOR ย้ายลงมาด้านล่าง */}
-              <div className="text-center pt-4 pb-1">
+              {/* คำใบ้ XOR */}
+              <div className="text-center pt-4 pb-2">
                 <span className="bg-purple-900/80 border border-purple-500/60 text-purple-200 font-mono text-xs sm:text-sm font-bold px-5 py-1.5 rounded-full shadow-md inline-block">
                   💡 คำใบ้: XOR (เหมือนกันได้ 0, ต่างกันได้ 1)
                 </span>
               </div>
 
+              {/* แถบเลือกตำแหน่งตัวอักษร (ย้ายลงมาไว้ตรงนี้ เหนือปุ่มส่งคำตอบ) */}
+              <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/40 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300">สลับตำแหน่งเพื่อตรวจทาน:</span>
+                  <span className="bg-amber-500 text-black text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow">
+                    {`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  {userBitsMatrix.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => { triggerHaptic(20); setActiveCharIndex(idx); }}
+                      className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer flex items-center gap-1.5 ${
+                        activeCharIndex === idx
+                          ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_14px_#f59e0b]"
+                          : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${activeCharIndex === idx ? "bg-black animate-ping" : "bg-slate-500"}`} />
+                      <span>{`ตัวที่ ${idx + 1}`}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* ปุ่มตัดวงจรปลดชนวน */}
@@ -760,10 +683,8 @@ export default function BombWorkshopGame() {
                 {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
               </div>
             )}
-
           </div>
         )}
-
       </div>
     </main>
   );
