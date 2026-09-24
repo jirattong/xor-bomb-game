@@ -1,16 +1,15 @@
-// lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCVHDRmfyZEypybZQwz2bqNalt_DQPr3WE",
-  authDomain: "xor-bomb-game.firebaseapp.com",
-  databaseURL: "https://xor-bomb-game-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "xor-bomb-game",
-  storageBucket: "xor-bomb-game.firebasestorage.app",
-  messagingSenderId: "272278943242",
-  appId: "1:272278943242:web:8084762092bbdd4d27d1f3",
-  measurementId: "G-BLBHFJNX4B",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);

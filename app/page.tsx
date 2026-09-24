@@ -68,6 +68,23 @@ export default function BombWorkshopGame() {
     }
   };
 
+  // รีเซ็ตเกมเพื่อกลับหน้าเมนูหลัก
+  const handleResetToMenu = () => {
+    triggerHaptic(30);
+    setRole("MENU");
+    setRoomId("");
+    setInputRoomId("");
+    setGameStatus("LOBBY");
+    setDefuserJoined(false);
+    setCipherBitsMatrix([]);
+    setKeyBitsMatrix([]);
+    setUserBitsMatrix([[0, 0, 0, 0, 0, 0, 0, 0]]);
+    setActiveCharIndex(0);
+    setSubmittedWordResult("");
+    hasTriggeredExplodeRef.current = false;
+    serverStartTimeRef.current = null;
+  };
+
   // Firebase Realtime Listener
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
@@ -81,11 +98,22 @@ export default function BombWorkshopGame() {
       setGameStatus(data.status);
       setDefuserJoined(Boolean(data.defuserJoined));
 
-      if (data.status === "PLAYING") {
-        setDefuserKey(data.secretKey || "");
-        setCipherHex(data.cipherHex || "");
+      if (data.targetWord) {
+        preloadedTargetWordRef.current = data.targetWord;
+        setTargetWord(data.targetWord);
+      }
+      if (data.secretKey) {
+        setSecretKey(data.secretKey);
+        setDefuserKey(data.secretKey);
+      }
+      if (data.cipherHex) {
+        setCipherHex(data.cipherHex);
+      }
+      if (data.submittedWord) {
+        setSubmittedWordResult(data.submittedWord);
+      }
 
-        if (data.targetWord) preloadedTargetWordRef.current = data.targetWord;
+      if (data.status === "PLAYING") {
         if (data.startTime) {
           serverStartTimeRef.current = data.startTime;
           serverTimeLimitRef.current = data.timeLimit || 120;
@@ -118,8 +146,11 @@ export default function BombWorkshopGame() {
     triggerHaptic(200);
 
     const roomRef = ref(rtdb, `rooms/${roomId}`);
-    await update(roomRef, { status: "EXPLODED" }).catch(() => {});
-  }, [roomId]);
+    await update(roomRef, {
+      status: "EXPLODED",
+      submittedWord: decodeBitsToWord(userBitsMatrix) || "TIMEOUT",
+    }).catch(() => {});
+  }, [roomId, userBitsMatrix]);
 
   // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
@@ -183,7 +214,7 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // Local Countdown Timer
+  // Countdown Timer
   useEffect(() => {
     if (gameStatus !== "PLAYING") return;
     const timer = setInterval(() => {
@@ -197,7 +228,7 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
-  // สั่งเริ่มนับถอยหลัง
+  // สั่งเริ่มเกม
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
 
@@ -218,7 +249,7 @@ export default function BombWorkshopGame() {
     });
   };
 
-  // ตรวจคำตอบและส่งผลลัพธ์ผ่าน Firebase
+  // ตรวจคำตอบและส่งผลลัพธ์
   const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
 
@@ -233,13 +264,89 @@ export default function BombWorkshopGame() {
     setGameStatus(nextStatus);
 
     const roomRef = ref(rtdb, `rooms/${roomId}`);
-    await update(roomRef, { status: nextStatus }).catch(() => {});
+    await update(roomRef, {
+      status: nextStatus,
+      submittedWord: finalAnswer,
+    }).catch(() => {});
   };
 
   const formatTimer = (s: number) => {
     const mins = Math.floor(s / 60);
     const secs = s % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // คำนวณเวลาที่ใช้ไป
+  const timeUsedSeconds = Math.max(0, (serverTimeLimitRef.current || 120) - timeLeft);
+
+  // =========================================================================
+  // MODAL หน้าต่างสรุปผลการแข่งขัน (แสดงเมื่อชนะ หรือ แพ้)
+  // =========================================================================
+  const renderResultModal = () => {
+    if (gameStatus !== "DEFUSED" && gameStatus !== "EXPLODED") return null;
+
+    const isWin = gameStatus === "DEFUSED";
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+        <div className={`vault-panel w-full max-w-lg p-6 sm:p-8 text-center border-4 shadow-2xl relative ${
+          isWin ? "border-emerald-500 shadow-emerald-950/60" : "border-red-600 shadow-red-950/60"
+        }`}>
+          <div className="brass-screw absolute top-3 left-3" />
+          <div className="brass-screw absolute top-3 right-3" />
+          <div className="brass-screw absolute bottom-3 left-3" />
+          <div className="brass-screw absolute bottom-3 right-3" />
+
+          <div className={`inline-block p-4 rounded-full mb-3 ${isWin ? "bg-emerald-950/80 border-2 border-emerald-500" : "bg-red-950/80 border-2 border-red-500 animate-bounce"}`}>
+            <span className="text-5xl">{isWin ? "🔓" : "💥"}</span>
+          </div>
+
+          <span className={`text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2 ${
+            isWin ? "bg-emerald-500 text-black" : "bg-red-600 text-white"
+          }`}>
+            {isWin ? "MISSION ACCOMPLISHED" : "DETONATION FAILURE"}
+          </span>
+
+          <h2 className={`text-3xl sm:text-4xl font-black mb-4 tracking-wider ${
+            isWin ? "text-emerald-400" : "text-red-500"
+          }`}>
+            {isWin ? "ปลดชนวนสำเร็จ!" : "ระเบิดทำงาน!"}
+          </h2>
+
+          <div className="vault-module p-4 text-left space-y-2.5 text-sm sm:text-base mb-6 bg-black/80 border border-slate-700">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-slate-400">คำศัพท์เป้าหมาย (Target):</span>
+              <span className="text-emerald-400 font-mono font-black text-xl tracking-wider">{targetWord || preloadedTargetWordRef.current}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-slate-400">กุญแจถอดรหัส (Secret Key):</span>
+              <span className="text-sky-400 font-mono font-black text-xl tracking-wider">{secretKey || defuserKey}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-slate-400">คำตอบที่ส่ง (Answer):</span>
+              <span className={`font-mono font-black text-xl tracking-wider ${isWin ? "text-emerald-400" : "text-rose-400"}`}>
+                {submittedWordResult || currentDecodedWord || "---"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-slate-400">เวลาที่ใช้ไป:</span>
+              <span className="text-amber-400 font-mono font-bold text-lg">{`${timeUsedSeconds} วินาที`}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleResetToMenu}
+            className={`tactile-btn w-full h-16 sm:h-18 text-xl font-black tracking-wider uppercase cursor-pointer ${
+              isWin
+                ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black"
+                : "bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white"
+            }`}
+          >
+            🔄 กลับสู่หน้าเมนูหลัก
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // =========================================================================
@@ -396,7 +503,9 @@ export default function BombWorkshopGame() {
   // =========================================================================
   if (role === "OPERATOR_LOBBY") {
     return (
-      <main className="min-h-screen flex items-center justify-center p-4">
+      <main className="min-h-screen flex items-center justify-center p-4 relative">
+        {renderResultModal()}
+
         <div className="vault-panel w-full max-w-lg p-6 sm:p-10 text-center">
           <div className="brass-screw absolute top-4 left-4" />
           <div className="brass-screw absolute top-4 right-4" />
@@ -452,18 +561,6 @@ export default function BombWorkshopGame() {
               {formatTimer(timeLeft)}
             </div>
           )}
-
-          {gameStatus === "DEFUSED" && (
-            <div className="p-4 bg-emerald-600 text-white font-black rounded-2xl text-xl mt-4 shadow-lg animate-pulse">
-              ✓ อีกฝั่งปลดชนวนสำเร็จ! ตู้เซฟถูกเปิดออกแล้ว
-            </div>
-          )}
-
-          {gameStatus === "EXPLODED" && (
-            <div className="p-4 bg-red-600 text-white font-black rounded-2xl text-xl mt-4 animate-bounce shadow-lg">
-              💥 ระเบิดทำงาน! อีกฝ่ายตอบผิดหรือหมดเวลา
-            </div>
-          )}
         </div>
       </main>
     );
@@ -478,7 +575,9 @@ export default function BombWorkshopGame() {
   const currentUserBits = userBitsMatrix[activeCharIndex] || [0, 0, 0, 0, 0, 0, 0, 0];
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6">
+    <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6 relative">
+      {renderResultModal()}
+
       <div className="vault-panel w-full max-w-5xl p-4 sm:p-8">
         <div className="brass-screw absolute top-3 left-3" />
         <div className="brass-screw absolute top-3 right-3" />
@@ -490,7 +589,7 @@ export default function BombWorkshopGame() {
             VAULT UNIT: <span className="text-amber-400 font-mono text-xl ml-2 font-black">{roomId}</span>
           </div>
           <button
-            onClick={() => { setRoomId(""); setRole("MENU"); }}
+            onClick={handleResetToMenu}
             className="tactile-btn bg-slate-800 text-slate-300 text-xs px-3 py-1.5 cursor-pointer"
           >
             เมนูหลัก
@@ -630,7 +729,7 @@ export default function BombWorkshopGame() {
                 </span>
               </div>
 
-              {/* แถบเลือกตำแหน่งตัวอักษร (ย้ายลงมาไว้ตรงนี้ เหนือปุ่มส่งคำตอบ) */}
+              {/* แถบเลือกตำแหน่งตัวอักษร */}
               <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/40 p-3 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-300">สลับตำแหน่งเพื่อตรวจทาน:</span>
@@ -672,17 +771,6 @@ export default function BombWorkshopGame() {
                 ✂️ CUT CIRCUIT / UNLOCK VAULT (ส่งคำตอบถอดรหัส)
               </button>
             </div>
-
-            {gameStatus === "DEFUSED" && (
-              <div className="p-4 bg-emerald-600 text-white font-black text-center text-xl rounded-xl shadow-xl mt-3">
-                {`✓ BOMB DEFUSED! ปลดชนวนสำเร็จ คำตอบถูกต้อง ("${submittedWordResult}")`}
-              </div>
-            )}
-            {gameStatus === "EXPLODED" && (
-              <div className="p-4 bg-red-600 text-white font-black text-center text-xl rounded-xl shadow-xl animate-bounce mt-3">
-                {`💥 BOOM! ระเบิดทำงาน คำตอบ ("${submittedWordResult || currentDecodedWord}") ไม่ถูกต้อง หรือหมดเวลา!`}
-              </div>
-            )}
           </div>
         )}
       </div>
