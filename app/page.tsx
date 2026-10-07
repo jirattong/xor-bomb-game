@@ -33,6 +33,51 @@ const decodeBitsToWord = (matrix: number[][]): string => {
     .join("");
 };
 
+
+
+/** Visual-only skin. Game state, Firebase listeners and handlers remain unchanged. */
+function TacticalStyles() {
+  return (
+    <style jsx global>{`
+      :root { color-scheme: dark; --tactical-bg: #070b0b; --tactical-panel: #0d1514; --tactical-line: #243532; --tactical-green: #b6ff55; --tactical-amber: #ffbf47; }
+      html { background: var(--tactical-bg); }
+      body { margin: 0; color: #e5eee9; background-color: var(--tactical-bg); background-image: radial-gradient(ellipse at 50% -10%, rgba(45, 91, 69, .24), transparent 55%), linear-gradient(rgba(111, 160, 139, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(111, 160, 139, .045) 1px, transparent 1px); background-size: auto, 28px 28px, 28px 28px; }
+      body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .12; background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(0,0,0,.55) 4px); }
+      main { isolation: isolate; }
+      .vault-panel { position: relative; overflow: hidden; border: 1px solid #344840 !important; border-radius: 24px !important; background: linear-gradient(145deg, rgba(17, 28, 25, .97), rgba(7, 12, 12, .98)) !important; box-shadow: 0 24px 80px rgba(0,0,0,.52), inset 0 1px rgba(220,255,238,.045), 0 0 0 5px rgba(21,37,31,.35) !important; }
+      .vault-panel::before { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(115deg, rgba(182,255,85,.045), transparent 35%, transparent 70%, rgba(255,191,71,.035)); }
+      .vault-module { position: relative; border: 1px solid #2d433b !important; border-radius: 16px !important; background: linear-gradient(145deg, rgba(17,29,26,.95), rgba(8,14,13,.96)) !important; box-shadow: inset 0 1px rgba(255,255,255,.035), 0 8px 22px rgba(0,0,0,.16); }
+      .vault-module:focus-within { border-color: rgba(182,255,85,.62) !important; box-shadow: 0 0 0 3px rgba(182,255,85,.07), inset 0 1px rgba(255,255,255,.035); }
+      .tactile-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border: 1px solid rgba(255,255,255,.18) !important; border-radius: 12px !important; font-weight: 900 !important; box-shadow: 0 4px 0 rgba(0,0,0,.42), 0 9px 20px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.18); transition: transform .15s ease, filter .15s ease, box-shadow .15s ease; }
+      .tactile-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+      .tactile-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.5), inset 0 2px 5px rgba(0,0,0,.22); }
+      .tactile-btn:focus-visible, .tactile-bit-btn:focus-visible { outline: 3px solid var(--tactical-green); outline-offset: 3px; }
+      .tactile-bit-btn { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #354640; border-radius: 11px; font-weight: 950; transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease; touch-action: manipulation; user-select: none; }
+      .tactile-bit-btn:active { transform: scale(.94); }
+      .tactile-bit-1 { color: #071008 !important; background: linear-gradient(180deg, #d3ff87, #9be83b) !important; border-color: #d7ff9a !important; box-shadow: 0 0 18px rgba(182,255,85,.28), inset 0 1px rgba(255,255,255,.8), 0 3px 0 #426e1d !important; }
+      .tactile-bit-0 { color: #71847b !important; background: linear-gradient(180deg, #17221e, #0a100e) !important; border-color: #2c3e36 !important; box-shadow: inset 0 2px 7px rgba(0,0,0,.55), 0 2px 0 #020403 !important; }
+      .led-bulb-on { width: 8px; height: 8px; border-radius: 999px; background: #f5ffe9; box-shadow: 0 0 5px #fff, 0 0 12px #a7ff49; }
+      .led-bulb-off { width: 8px; height: 8px; border-radius: 999px; background: #39473f; box-shadow: inset 0 1px 2px #000; }
+      .vault-timer { color: #ffca67 !important; font-variant-numeric: tabular-nums; letter-spacing: .06em; text-shadow: 0 0 22px rgba(255,191,71,.22); }
+      .hazard-stripe { border-radius: 5px; background: repeating-linear-gradient(135deg, #fbbf24 0 12px, #101614 12px 24px) !important; opacity: .92; }
+      .brass-screw { z-index: 2; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#d8c18b,#66512d) !important; box-shadow: inset 0 1px 1px rgba(255,255,255,.65), 0 1px 3px #000; }
+      .brass-screw::after { content: ''; position: absolute; width: 5px; height: 1px; top: 3.5px; left: 1.5px; background: #45381f; transform: rotate(-35deg); }
+      input, select { transition: border-color .15s ease, box-shadow .15s ease; }
+      input:focus, select:focus { box-shadow: 0 0 0 3px rgba(182,255,85,.09), 0 0 22px rgba(182,255,85,.05) !important; }
+      button:disabled { filter: saturate(.45); }
+      @media (max-width: 640px) {
+        .vault-panel { border-radius: 18px !important; }
+        .vault-module { border-radius: 13px !important; }
+        .tactile-btn { min-height: 52px; padding-left: .85rem; padding-right: .85rem; line-height: 1.2; }
+        .tactile-bit-btn { min-height: 56px; border-radius: 8px; }
+        .vault-panel .grid.grid-cols-8 { gap: 4px !important; }
+        .vault-panel .grid.grid-cols-8 > * { min-width: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+    `}</style>
+  );
+}
+
 export default function BombWorkshopGame() {
   const [role, setRole] = useState<"MENU" | "OPERATOR_SETUP" | "OPERATOR_LOBBY" | "DEFUSER">("MENU");
   const [roomId, setRoomId] = useState("");
@@ -355,6 +400,7 @@ export default function BombWorkshopGame() {
   if (role === "MENU") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
+        <TacticalStyles />
         <div className="vault-panel w-full max-w-xl p-6 sm:p-10">
           <div className="brass-screw absolute top-4 left-4" />
           <div className="brass-screw absolute top-4 right-4" />
@@ -427,6 +473,7 @@ export default function BombWorkshopGame() {
   if (role === "OPERATOR_SETUP") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
+        <TacticalStyles />
         <div className="vault-panel w-full max-w-lg p-6 sm:p-10">
           <div className="brass-screw absolute top-4 left-4" />
           <div className="brass-screw absolute top-4 right-4" />
@@ -504,6 +551,7 @@ export default function BombWorkshopGame() {
   if (role === "OPERATOR_LOBBY") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4 relative">
+        <TacticalStyles />
         {renderResultModal()}
 
         <div className="vault-panel w-full max-w-lg p-6 sm:p-10 text-center">
@@ -576,6 +624,7 @@ export default function BombWorkshopGame() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6 relative">
+      <TacticalStyles />
       {renderResultModal()}
 
       <div className="vault-panel w-full max-w-5xl p-4 sm:p-8">
