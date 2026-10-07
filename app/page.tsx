@@ -188,15 +188,31 @@ function TacticalStyles() {
         align-items: center;
         justify-content: center;
         gap: .5rem;
-        border: 1px solid rgba(255,255,255,.16) !important;
-        border-radius: 12px !important;
-        font-weight: 800 !important;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 12px;
+        font-weight: 800;
         box-shadow: 0 4px 0 rgba(0,0,0,.42), 0 9px 20px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.16);
         transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
       }
       .tactile-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
       .tactile-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.5), inset 0 2px 5px rgba(0,0,0,.22); }
       
+      /* คลาสพิเศษสำหรับปุ่มตำแหน่งที่กำลังเลือกอยู่ การันตีสีและแสงเรือง */
+      .tactile-tab-active {
+        background: linear-gradient(180deg, #10b981, #059669) !important;
+        color: #ffffff !important;
+        border: 2px solid #6ee7b7 !important;
+        box-shadow: 0 0 16px rgba(52, 211, 153, 0.6), inset 0 1px rgba(255, 255, 255, 0.6), 0 3px 0 #064e3b !important;
+        font-weight: 900 !important;
+      }
+
+      .tactile-tab-inactive {
+        background: linear-gradient(180deg, #1f2937, #111827) !important;
+        color: #9ca3af !important;
+        border: 1px solid #374151 !important;
+        box-shadow: inset 0 1px rgba(255, 255, 255, 0.05), 0 3px 0 #000000 !important;
+      }
+
       .emergency-red-btn {
         width: 105px;
         height: 105px;
@@ -290,6 +306,7 @@ export default function BombWorkshopGame() {
   const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0, 0, 0, 0, 0, 0, 0, 0]]);
   const [submittedWordResult, setSubmittedWordResult] = useState("");
 
+  // บันทึกตำแหน่งที่เคยกดเข้าไปดูแล้ว
   const [visitedIndices, setVisitedIndices] = useState<number[]>([0]);
 
   const currentDecodedWord = useMemo(() => decodeBitsToWord(userBitsMatrix), [userBitsMatrix]);
@@ -992,18 +1009,17 @@ export default function BombWorkshopGame() {
                 </span>
               </div>
 
-              {/* แถบเลือกตรวจทานตำแหน่ง: ข้อความตำแหน่งเรียบง่าย + ปุ่มมีไฟ LED แสงเรืองบอกชัดเจน */}
+              {/* แถบเลือกตรวจทานตำแหน่ง: ไม่มีติ๊กถูก และปุ่มตัวที่เลือกเรืองแสงเขียวชัดเจน */}
               <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/40 p-3 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
                   <span>สลับตำแหน่งเพื่อตรวจทาน:</span>
                   <span className="font-mono font-bold text-slate-100">{`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}</span>
                 </div>
 
-                {/* ปุ่มตัวที่ 1, 2, 3 พร้อมแสงบอกตำแหน่ง Active Indicator */}
-                <div className="flex gap-2">
+                {/* ปุ่มตัวที่ 1, 2, 3 */}
+                <div className="flex gap-2.5">
                   {userBitsMatrix.map((_, idx) => {
                     const isActive = activeCharIndex === idx;
-                    const isVisited = visitedIndices.includes(idx);
 
                     return (
                       <button
@@ -1018,24 +1034,19 @@ export default function BombWorkshopGame() {
                         }}
                         className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer flex items-center gap-2 transition-all duration-200 ${
                           isActive
-                            ? "bg-emerald-950/90 !text-emerald-300 !border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.45)] ring-2 ring-emerald-400/50 scale-105"
-                            : isVisited
-                            ? "bg-slate-900/90 text-slate-300 border-slate-700/80 hover:bg-slate-800"
-                            : "bg-slate-900/50 text-slate-500 border-slate-800 hover:bg-slate-800"
+                            ? "tactile-tab-active scale-105"
+                            : "tactile-tab-inactive hover:bg-slate-800"
                         }`}
                       >
-                        {/* ไฟบอกสถานะประจำปุ่ม: มีแสงเรืองกระพริบเมื่อเป็นตัวที่กำลังทำ */}
+                        {/* ไฟ LED ประจำปุ่ม เรืองแสงสีเขียวเมื่อเลือกตัวนี้ */}
                         <span
                           className={`w-2.5 h-2.5 rounded-full transition-all ${
                             isActive
-                              ? "bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse"
-                              : isVisited
-                              ? "bg-emerald-700"
-                              : "bg-slate-700"
+                              ? "bg-white shadow-[0_0_8px_#ffffff] animate-pulse"
+                              : "bg-slate-600"
                           }`}
                         />
                         <span>{`ตัวที่ ${idx + 1}`}</span>
-                        {isVisited && !isActive && <span className="text-[10px] text-emerald-400/70">✓</span>}
                       </button>
                     );
                   })}
