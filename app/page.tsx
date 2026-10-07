@@ -33,77 +33,231 @@ const decodeBitsToWord = (matrix: number[][]): string => {
     .join("");
 };
 
+// ---------------------------------------------------------
+// Sound Effects Engine (Web Audio API)
+// ---------------------------------------------------------
+class SoundFX {
+  private static ctx: AudioContext | null = null;
+
+  private static getContext(): AudioContext | null {
+    if (typeof window === "undefined") return null;
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {});
+    }
+    return this.ctx;
+  }
+
+  static playBitClick(isHigh: boolean = false) {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(isHigh ? 980 : 620, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(isHigh ? 420 : 280, ctx.currentTime + 0.04);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.04);
+  }
+
+  static playTabBeep() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  }
+
+  static playTick(isUrgent: boolean = false) {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(isUrgent ? 1100 : 750, ctx.currentTime);
+    gain.gain.setValueAtTime(isUrgent ? 0.045 : 0.025, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.025);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.025);
+  }
+
+  static playSuccess() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const freqs = [440, 554.37, 659.25, 880];
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + idx * 0.08);
+      osc.stop(ctx.currentTime + idx * 0.08 + 0.35);
+    });
+  }
+
+  static playExplosion() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const bufferSize = ctx.sampleRate * 0.6;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(380, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.55);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start();
+    noise.stop(ctx.currentTime + 0.55);
+  }
+}
+
 /** Visual-only skin */
 function TacticalStyles() {
   return (
     <style jsx global>{`
-      :root { color-scheme: dark; --tactical-bg: #070b0b; --tactical-panel: #0d1514; --tactical-line: #243532; --tactical-green: #b6ff55; --tactical-amber: #ffbf47; }
+      :root {
+        color-scheme: dark;
+        --tactical-bg: #070b0b;
+        --tactical-panel: #0d1514;
+        --tactical-line: #243532;
+        --tactical-green: #34d399;
+        --tactical-amber: #ffbf47;
+      }
       html { background: var(--tactical-bg); }
-      body { margin: 0; color: #e5eee9; background-color: var(--tactical-bg); background-image: radial-gradient(ellipse at 50% -10%, rgba(45, 91, 69, .24), transparent 55%), linear-gradient(rgba(111, 160, 139, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(111, 160, 139, .045) 1px, transparent 1px); background-size: auto, 28px 28px, 28px 28px; }
-      body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .12; background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(0,0,0,.55) 4px); }
+      body {
+        margin: 0;
+        color: #e5eee9;
+        background-color: var(--tactical-bg);
+        background-image: radial-gradient(ellipse at 50% -10%, rgba(45, 91, 69, .18), transparent 55%),
+          linear-gradient(rgba(111, 160, 139, .035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(111, 160, 139, .035) 1px, transparent 1px);
+        background-size: auto, 28px 28px, 28px 28px;
+      }
+      body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .10; background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(0,0,0,.55) 4px); }
       main { isolation: isolate; }
-      .vault-panel { position: relative; overflow: hidden; border: 1px solid #344840 !important; border-radius: 24px !important; background: linear-gradient(145deg, rgba(17, 28, 25, .97), rgba(7, 12, 12, .98)) !important; box-shadow: 0 24px 80px rgba(0,0,0,.52), inset 0 1px rgba(220,255,238,.045), 0 0 0 5px rgba(21,37,31,.35) !important; }
-      .vault-panel::before { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(115deg, rgba(182,255,85,.045), transparent 35%, transparent 70%, rgba(255,191,71,.035)); }
-      .vault-module { position: relative; border: 1px solid #2d433b !important; border-radius: 16px !important; background: linear-gradient(145deg, rgba(17,29,26,.95), rgba(8,14,13,.96)) !important; box-shadow: inset 0 1px rgba(255,255,255,.035), 0 8px 22px rgba(0,0,0,.16); }
-      .vault-module:focus-within { border-color: rgba(182,255,85,.62) !important; box-shadow: 0 0 0 3px rgba(182,255,85,.07), inset 0 1px rgba(255,255,255,.035); }
-      .tactile-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border: 1px solid rgba(255,255,255,.18) !important; border-radius: 12px !important; font-weight: 900 !important; box-shadow: 0 4px 0 rgba(0,0,0,.42), 0 9px 20px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.18); transition: transform .15s ease, filter .15s ease, box-shadow .15s ease; }
-      .tactile-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+      .vault-panel {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #2e3f38 !important;
+        border-radius: 24px !important;
+        background: linear-gradient(145deg, rgba(17, 28, 25, .97), rgba(7, 12, 12, .98)) !important;
+        box-shadow: 0 24px 80px rgba(0,0,0,.52), inset 0 1px rgba(220,255,238,.045), 0 0 0 5px rgba(21,37,31,.25) !important;
+      }
+      .vault-module {
+        position: relative;
+        border: 1px solid #283a34 !important;
+        border-radius: 16px !important;
+        background: linear-gradient(145deg, rgba(17,29,26,.95), rgba(8,14,13,.96)) !important;
+        box-shadow: inset 0 1px rgba(255,255,255,.035), 0 8px 22px rgba(0,0,0,.16);
+      }
+      .tactile-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        border: 1px solid rgba(255,255,255,.16) !important;
+        border-radius: 12px !important;
+        font-weight: 800 !important;
+        box-shadow: 0 4px 0 rgba(0,0,0,.42), 0 9px 20px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.16);
+        transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+      }
+      .tactile-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
       .tactile-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.5), inset 0 2px 5px rgba(0,0,0,.22); }
-      .tactile-btn:focus-visible, .tactile-bit-btn:focus-visible { outline: 3px solid var(--tactical-green); outline-offset: 3px; }
       
-      /* Emergency Big Red Button */
       .emergency-red-btn {
-        width: 110px;
-        height: 110px;
+        width: 105px;
+        height: 105px;
         border-radius: 50% !important;
-        background: radial-gradient(circle at 35% 35%, #ff4d4d, #b30000 65%, #660000 100%) !important;
-        border: 4px solid #ff9999 !important;
+        background: radial-gradient(circle at 35% 35%, #e63946, #9b111e 65%, #590d15 100%) !important;
+        border: 3px solid #ff7b88 !important;
         color: #ffffff !important;
-        font-weight: 950 !important;
-        font-size: 1.35rem !important;
+        font-weight: 900 !important;
+        font-size: 1.25rem !important;
         letter-spacing: 0.05em;
-        box-shadow: 0 0 0 6px #241315, 0 12px 28px rgba(255, 0, 0, 0.45), inset 0 3px 6px rgba(255,255,255,0.7), inset 0 -5px 12px rgba(0,0,0,0.8) !important;
+        box-shadow: 0 0 0 6px #221214, 0 10px 24px rgba(230, 57, 70, 0.4), inset 0 3px 5px rgba(255,255,255,0.65), inset 0 -4px 10px rgba(0,0,0,0.8) !important;
         transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
       }
       .emergency-red-btn:hover:not(:disabled) {
-        filter: brightness(1.15);
-        box-shadow: 0 0 0 6px #241315, 0 14px 34px rgba(255, 0, 0, 0.6), inset 0 3px 6px rgba(255,255,255,0.8), inset 0 -5px 12px rgba(0,0,0,0.8) !important;
+        filter: brightness(1.1);
+        box-shadow: 0 0 0 6px #221214, 0 12px 30px rgba(230, 57, 70, 0.55), inset 0 3px 5px rgba(255,255,255,0.75), inset 0 -4px 10px rgba(0,0,0,0.8) !important;
       }
       .emergency-red-btn:active:not(:disabled) {
-        transform: translateY(4px) scale(0.96);
-        box-shadow: 0 0 0 6px #241315, 0 4px 12px rgba(255, 0, 0, 0.4), inset 0 4px 10px rgba(0,0,0,0.9) !important;
+        transform: translateY(3px) scale(0.97);
+        box-shadow: 0 0 0 6px #221214, 0 4px 10px rgba(230, 57, 70, 0.35), inset 0 3px 8px rgba(0,0,0,0.9) !important;
       }
       .emergency-red-btn:disabled {
-        background: radial-gradient(circle at 50% 50%, #442a2b, #221415) !important;
-        border-color: #553335 !important;
-        color: #775557 !important;
+        background: radial-gradient(circle at 50% 50%, #3a2527, #1e1314) !important;
+        border-color: #4a2d30 !important;
+        color: #6b4d50 !important;
         box-shadow: 0 0 0 5px #150d0e, inset 0 2px 4px rgba(0,0,0,0.8) !important;
         filter: none !important;
         cursor: not-allowed;
       }
 
-      .tactile-bit-btn { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #354640; border-radius: 11px; font-weight: 950; transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease; touch-action: manipulation; user-select: none; }
+      .tactile-bit-btn { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #30403a; border-radius: 11px; font-weight: 900; transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease; touch-action: manipulation; user-select: none; }
       .tactile-bit-btn:active { transform: scale(.94); }
-      .tactile-bit-1 { color: #071008 !important; background: linear-gradient(180deg, #d3ff87, #9be83b) !important; border-color: #d7ff9a !important; box-shadow: 0 0 18px rgba(182,255,85,.28), inset 0 1px rgba(255,255,255,.8), 0 3px 0 #426e1d !important; }
-      .tactile-bit-0 { color: #71847b !important; background: linear-gradient(180deg, #17221e, #0a100e) !important; border-color: #2c3e36 !important; box-shadow: inset 0 2px 7px rgba(0,0,0,.55), 0 2px 0 #020403 !important; }
-      .led-bulb-on { width: 8px; height: 8px; border-radius: 999px; background: #f5ffe9; box-shadow: 0 0 5px #fff, 0 0 12px #a7ff49; }
-      .led-bulb-off { width: 8px; height: 8px; border-radius: 999px; background: #39473f; box-shadow: inset 0 1px 2px #000; }
-      .vault-timer { color: #ffca67 !important; font-variant-numeric: tabular-nums; letter-spacing: .06em; text-shadow: 0 0 22px rgba(255,191,71,.22); }
-      .hazard-stripe { border-radius: 5px; background: repeating-linear-gradient(135deg, #fbbf24 0 12px, #101614 12px 24px) !important; opacity: .92; }
-      .brass-screw { z-index: 2; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#d8c18b,#66512d) !important; box-shadow: inset 0 1px 1px rgba(255,255,255,.65), 0 1px 3px #000; }
-      .brass-screw::after { content: ''; position: absolute; width: 5px; height: 1px; top: 3.5px; left: 1.5px; background: #45381f; transform: rotate(-35deg); }
+      
+      .tactile-bit-1 {
+        color: #042115 !important;
+        background: linear-gradient(180deg, #6ee7b7, #10b981) !important;
+        border-color: #a7f3d0 !important;
+        box-shadow: 0 0 12px rgba(52, 211, 153, .22), inset 0 1px rgba(255,255,255,.6), 0 3px 0 #064e3b !important;
+      }
+      .tactile-bit-0 {
+        color: #6d7f76 !important;
+        background: linear-gradient(180deg, #17221e, #0a100e) !important;
+        border-color: #273730 !important;
+        box-shadow: inset 0 2px 7px rgba(0,0,0,.55), 0 2px 0 #020403 !important;
+      }
+      .led-bulb-on { width: 8px; height: 8px; border-radius: 999px; background: #e6fffa; box-shadow: 0 0 4px #fff, 0 0 8px #34d399; }
+      .led-bulb-off { width: 8px; height: 8px; border-radius: 999px; background: #33423b; box-shadow: inset 0 1px 2px #000; }
+      .vault-timer { color: #ffca67 !important; font-variant-numeric: tabular-nums; letter-spacing: .06em; text-shadow: 0 0 16px rgba(255,191,71,.20); }
+      .hazard-stripe { border-radius: 5px; background: repeating-linear-gradient(135deg, #fbbf24 0 12px, #101614 12px 24px) !important; opacity: .85; }
+      .brass-screw { z-index: 2; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#c4b07e,#594727) !important; box-shadow: inset 0 1px 1px rgba(255,255,255,.65), 0 1px 3px #000; }
+      .brass-screw::after { content: ''; position: absolute; width: 5px; height: 1px; top: 3.5px; left: 1.5px; background: #3d311b; transform: rotate(-35deg); }
       input, select { transition: border-color .15s ease, box-shadow .15s ease; }
-      input:focus, select:focus { box-shadow: 0 0 0 3px rgba(182,255,85,.09), 0 0 22px rgba(182,255,85,.05) !important; }
+      input:focus, select:focus { box-shadow: 0 0 0 3px rgba(52,211,153,.15), 0 0 14px rgba(52,211,153,.08) !important; }
       button:disabled { filter: saturate(.45); }
       @media (max-width: 640px) {
         .vault-panel { border-radius: 18px !important; }
         .vault-module { border-radius: 13px !important; }
-        .tactile-btn { min-height: 52px; padding-left: .85rem; padding-right: .85rem; line-height: 1.2; }
+        .tactile-btn { min-height: 50px; padding-left: .85rem; padding-right: .85rem; line-height: 1.2; }
         .tactile-bit-btn { min-height: 56px; border-radius: 8px; }
         .vault-panel .grid.grid-cols-8 { gap: 4px !important; }
-        .vault-panel .grid.grid-cols-8 > * { min-width: 0; }
       }
-      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
     `}</style>
   );
 }
@@ -125,6 +279,7 @@ export default function BombWorkshopGame() {
   const serverTimeLimitRef = useRef<number>(120);
   const preloadedTargetWordRef = useRef<string>("");
   const hasTriggeredExplodeRef = useRef<boolean>(false);
+  const lastTickedSecondRef = useRef<number | null>(null);
 
   const [defuserKey, setDefuserKey] = useState("");
   const [cipherHex, setCipherHex] = useState("");
@@ -135,7 +290,6 @@ export default function BombWorkshopGame() {
   const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0, 0, 0, 0, 0, 0, 0, 0]]);
   const [submittedWordResult, setSubmittedWordResult] = useState("");
 
-  // บันทึกตำแหน่งที่เคยกดเข้าไปดูแล้ว
   const [visitedIndices, setVisitedIndices] = useState<number[]>([0]);
 
   const currentDecodedWord = useMemo(() => decodeBitsToWord(userBitsMatrix), [userBitsMatrix]);
@@ -148,6 +302,7 @@ export default function BombWorkshopGame() {
 
   const handleResetToMenu = () => {
     triggerHaptic(30);
+    SoundFX.playTabBeep();
     setRole("MENU");
     setRoomId("");
     setInputRoomId("");
@@ -161,9 +316,9 @@ export default function BombWorkshopGame() {
     setSubmittedWordResult("");
     hasTriggeredExplodeRef.current = false;
     serverStartTimeRef.current = null;
+    lastTickedSecondRef.current = null;
   };
 
-  // Firebase Realtime Listener
   useEffect(() => {
     if (!roomId || role === "MENU" || role === "OPERATOR_SETUP") return;
 
@@ -172,6 +327,12 @@ export default function BombWorkshopGame() {
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
+
+      if (data.status === "DEFUSED" && gameStatus !== "DEFUSED") {
+        SoundFX.playSuccess();
+      } else if (data.status === "EXPLODED" && gameStatus !== "EXPLODED") {
+        SoundFX.playExplosion();
+      }
 
       setGameStatus(data.status);
       setDefuserJoined(Boolean(data.defuserJoined));
@@ -215,13 +376,14 @@ export default function BombWorkshopGame() {
     return () => {
       off(roomRef);
     };
-  }, [roomId, role, cipherBitsMatrix.length]);
+  }, [roomId, role, cipherBitsMatrix.length, gameStatus]);
 
   const triggerExplode = useCallback(async () => {
     if (hasTriggeredExplodeRef.current) return;
     hasTriggeredExplodeRef.current = true;
     setGameStatus("EXPLODED");
     triggerHaptic(200);
+    SoundFX.playExplosion();
 
     const roomRef = ref(rtdb, `rooms/${roomId}`);
     await update(roomRef, {
@@ -231,6 +393,7 @@ export default function BombWorkshopGame() {
   }, [roomId, userBitsMatrix]);
 
   const handleSaveAndCreateRoom = async () => {
+    SoundFX.playTabBeep();
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
 
@@ -274,6 +437,7 @@ export default function BombWorkshopGame() {
   };
 
   const handleJoinRoom = async () => {
+    SoundFX.playTabBeep();
     const code = inputRoomId.replace(/[^A-Za-z0-9]/g, "").trim().toUpperCase();
     if (!code || code.length !== 4) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
 
@@ -297,6 +461,12 @@ export default function BombWorkshopGame() {
         const elapsed = Math.floor((Date.now() - serverStartTimeRef.current) / 1000);
         const remain = Math.max(0, serverTimeLimitRef.current - elapsed);
         setTimeLeft(remain);
+
+        if (lastTickedSecondRef.current !== remain && remain > 0) {
+          lastTickedSecondRef.current = remain;
+          SoundFX.playTick(remain <= 10);
+        }
+
         if (remain === 0) triggerExplode();
       }
     }, 200);
@@ -305,6 +475,7 @@ export default function BombWorkshopGame() {
 
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
+    SoundFX.playTabBeep();
 
     const roomRef = ref(rtdb, `rooms/${roomId}`);
     await update(roomRef, {
@@ -316,18 +487,19 @@ export default function BombWorkshopGame() {
   const toggleBit = (bitIndex: number) => {
     if (gameStatus !== "PLAYING") return;
     triggerHaptic(25);
+    const nextVal = userBitsMatrix[activeCharIndex][bitIndex] === 0 ? 1 : 0;
+    SoundFX.playBitClick(nextVal === 1);
+
     setUserBitsMatrix((prev) => {
       const next = prev.map((row) => [...row]);
-      next[activeCharIndex][bitIndex] = next[activeCharIndex][bitIndex] === 0 ? 1 : 0;
+      next[activeCharIndex][bitIndex] = nextVal;
       return next;
     });
   };
 
-  // ตรวจคำตอบและส่งผลลัพธ์
   const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
 
-    // เช็คว่าดูครบทุกตำแหน่งแล้วหรือยัง
     if (visitedIndices.length < userBitsMatrix.length) {
       alert("⚠️ กรุณากดตรวจทานให้ครบทุกตำแหน่งก่อนยืนยัน!");
       return;
@@ -341,6 +513,12 @@ export default function BombWorkshopGame() {
     const nextStatus = isCorrect ? "DEFUSED" : "EXPLODED";
 
     triggerHaptic(isCorrect ? 80 : 250);
+    if (isCorrect) {
+      SoundFX.playSuccess();
+    } else {
+      SoundFX.playExplosion();
+    }
+
     setGameStatus(nextStatus);
 
     const roomRef = ref(rtdb, `rooms/${roomId}`);
@@ -381,7 +559,7 @@ export default function BombWorkshopGame() {
           </div>
 
           <span className={`text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2 ${
-            isWin ? "bg-emerald-500 text-black" : "bg-red-600 text-white"
+            isWin ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
           }`}>
             {isWin ? "MISSION ACCOMPLISHED" : "DETONATION FAILURE"}
           </span>
@@ -417,7 +595,7 @@ export default function BombWorkshopGame() {
             onClick={handleResetToMenu}
             className={`tactile-btn w-full h-16 sm:h-18 text-xl font-black tracking-wider uppercase cursor-pointer ${
               isWin
-                ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black"
+                ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white"
                 : "bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white"
             }`}
           >
@@ -464,7 +642,7 @@ export default function BombWorkshopGame() {
                 กำหนดคำศัพท์และคีย์ เพื่อเปิดสัญญาณตู้เซฟให้คู่หู
               </p>
               <button
-                onClick={() => setRole("OPERATOR_SETUP")}
+                onClick={() => { SoundFX.playTabBeep(); setRole("OPERATOR_SETUP"); }}
                 className="tactile-btn w-full h-16 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black text-xl tracking-wider cursor-pointer"
               >
                 + ตั้งค่า & เปิดห้องใหม่
@@ -517,7 +695,7 @@ export default function BombWorkshopGame() {
           <div className="flex justify-between items-center border-b-2 border-slate-700 pb-4 mb-6">
             <h2 className="text-2xl font-black text-amber-400">⚙️ ตั้งค่ารหัสตู้เซฟ</h2>
             <button
-              onClick={() => setRole("MENU")}
+              onClick={() => { SoundFX.playTabBeep(); setRole("MENU"); }}
               className="tactile-btn bg-slate-700 text-slate-200 text-xs px-4 py-2 cursor-pointer"
             >
               ย้อนกลับ
@@ -570,7 +748,7 @@ export default function BombWorkshopGame() {
           <button
             onClick={handleSaveAndCreateRoom}
             disabled={isSubmitting}
-            className="tactile-btn w-full h-18 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black text-xl tracking-wider cursor-pointer"
+            className="tactile-btn w-full h-18 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xl tracking-wider cursor-pointer"
           >
             {isSubmitting ? "กำลังเปิดสัญญาณ..." : "✓ บันทึกรหัส & สร้างตู้เซฟ"}
           </button>
@@ -729,7 +907,7 @@ export default function BombWorkshopGame() {
                         key={idx}
                         className={`px-1 rounded ${
                           idx === activeCharIndex
-                            ? "text-emerald-300 bg-emerald-500/20 border-b-2 border-emerald-400 animate-pulse scale-110"
+                            ? "text-emerald-300 bg-emerald-500/20 border-b-2 border-emerald-400 scale-105"
                             : "text-slate-400"
                         }`}
                       >
@@ -779,14 +957,14 @@ export default function BombWorkshopGame() {
                 </div>
 
                 <div className="text-center py-0.5">
-                  <span className="text-xs font-bold text-emerald-400 animate-pulse">
+                  <span className="text-xs font-bold text-emerald-400/90">
                     {`↓ กำลังแก้ไขบิตตัวที่ ${activeCharIndex + 1} / ${totalChars} (0 ⇄ 1) ↓`}
                   </span>
                 </div>
 
                 {/* 3. แถวปุ่มแตะสลับบิต (Output) */}
                 <div>
-                  <div className="text-xs font-bold text-emerald-400 mb-2 flex justify-between items-center">
+                  <div className="text-xs font-bold text-emerald-400/90 mb-2 flex justify-between items-center">
                     <span>{`OUTPUT บิตตัวที่ ${activeCharIndex + 1} (ได้ตัวอักษร: '${currentDecodedWord[activeCharIndex] || "?"}'):`}</span>
                     <span className="text-slate-400 text-[11px]">สวิตช์สัมผัส 3D</span>
                   </div>
@@ -809,20 +987,19 @@ export default function BombWorkshopGame() {
 
               {/* คำใบ้ XOR */}
               <div className="text-center pt-4 pb-2">
-                <span className="bg-purple-900/80 border border-purple-500/60 text-purple-200 font-mono text-xs sm:text-sm font-bold px-5 py-1.5 rounded-full shadow-md inline-block">
+                <span className="bg-purple-900/70 border border-purple-500/50 text-purple-200 font-mono text-xs sm:text-sm font-semibold px-5 py-1.5 rounded-full shadow-md inline-block">
                   💡 คำใบ้: XOR (เหมือนกันได้ 0, ต่างกันได้ 1)
                 </span>
               </div>
 
-              {/* 1. แถบเลือกตรวจทานตำแหน่ง (สีเขียวนีออนสำหรับตัวที่กำลังทำ) */}
+              {/* แถบเลือกตรวจทานตำแหน่ง: ข้อความตำแหน่งเรียบง่าย + ปุ่มมีไฟ LED แสงเรืองบอกชัดเจน */}
               <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/40 p-3 rounded-xl border border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-300">สลับตำแหน่งเพื่อตรวจทาน:</span>
-                  <span className="bg-[#b6ff55] text-black text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-[0_0_12px_#b6ff55]">
-                    {`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}
-                  </span>
+                <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                  <span>สลับตำแหน่งเพื่อตรวจทาน:</span>
+                  <span className="font-mono font-bold text-slate-100">{`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}</span>
                 </div>
 
+                {/* ปุ่มตัวที่ 1, 2, 3 พร้อมแสงบอกตำแหน่ง Active Indicator */}
                 <div className="flex gap-2">
                   {userBitsMatrix.map((_, idx) => {
                     const isActive = activeCharIndex === idx;
@@ -833,22 +1010,32 @@ export default function BombWorkshopGame() {
                         key={idx}
                         onClick={() => {
                           triggerHaptic(20);
+                          SoundFX.playTabBeep();
                           setActiveCharIndex(idx);
                           if (!visitedIndices.includes(idx)) {
                             setVisitedIndices((prev) => [...prev, idx]);
                           }
                         }}
-                        className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer flex items-center gap-1.5 transition-all duration-200 ${
+                        className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer flex items-center gap-2 transition-all duration-200 ${
                           isActive
-                            ? "bg-[#b6ff55] !text-black !border-[#d9ff8d] shadow-[0_0_16px_#b6ff55] scale-105"
+                            ? "bg-emerald-950/90 !text-emerald-300 !border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.45)] ring-2 ring-emerald-400/50 scale-105"
                             : isVisited
-                            ? "bg-emerald-950/60 text-emerald-300 border-emerald-600/60 hover:bg-emerald-900/80"
-                            : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
+                            ? "bg-slate-900/90 text-slate-300 border-slate-700/80 hover:bg-slate-800"
+                            : "bg-slate-900/50 text-slate-500 border-slate-800 hover:bg-slate-800"
                         }`}
                       >
-                        <span className={`w-2 h-2 rounded-full ${isActive ? "bg-black animate-ping" : isVisited ? "bg-emerald-400" : "bg-slate-500"}`} />
+                        {/* ไฟบอกสถานะประจำปุ่ม: มีแสงเรืองกระพริบเมื่อเป็นตัวที่กำลังทำ */}
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full transition-all ${
+                            isActive
+                              ? "bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse"
+                              : isVisited
+                              ? "bg-emerald-700"
+                              : "bg-slate-700"
+                          }`}
+                        />
                         <span>{`ตัวที่ ${idx + 1}`}</span>
-                        {isVisited && !isActive && <span className="text-[10px] text-emerald-400">✓</span>}
+                        {isVisited && !isActive && <span className="text-[10px] text-emerald-400/70">✓</span>}
                       </button>
                     );
                   })}
@@ -865,7 +1052,7 @@ export default function BombWorkshopGame() {
               )}
             </div>
 
-            {/* 2. ส่วนส่งคำตอบ: แยกออกมาด้านล่างอย่างชัดเจน + ปุ่มวงกลมสีแดงสไตล์ Detonator */}
+            {/* ส่วนส่งคำตอบ: ปุ่มวงกลมสีแดงสไตล์ Detonator */}
             <div className="pt-6 pb-4 flex flex-col items-center justify-center">
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">
                 DETONATION / DEFUSE TRIGGER
