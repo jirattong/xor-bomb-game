@@ -33,9 +33,7 @@ const decodeBitsToWord = (matrix: number[][]): string => {
     .join("");
 };
 
-
-
-/** Visual-only skin. Game state, Firebase listeners and handlers remain unchanged. */
+/** Visual-only skin */
 function TacticalStyles() {
   return (
     <style jsx global>{`
@@ -52,6 +50,38 @@ function TacticalStyles() {
       .tactile-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
       .tactile-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.5), inset 0 2px 5px rgba(0,0,0,.22); }
       .tactile-btn:focus-visible, .tactile-bit-btn:focus-visible { outline: 3px solid var(--tactical-green); outline-offset: 3px; }
+      
+      /* Emergency Big Red Button */
+      .emergency-red-btn {
+        width: 110px;
+        height: 110px;
+        border-radius: 50% !important;
+        background: radial-gradient(circle at 35% 35%, #ff4d4d, #b30000 65%, #660000 100%) !important;
+        border: 4px solid #ff9999 !important;
+        color: #ffffff !important;
+        font-weight: 950 !important;
+        font-size: 1.35rem !important;
+        letter-spacing: 0.05em;
+        box-shadow: 0 0 0 6px #241315, 0 12px 28px rgba(255, 0, 0, 0.45), inset 0 3px 6px rgba(255,255,255,0.7), inset 0 -5px 12px rgba(0,0,0,0.8) !important;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
+      }
+      .emergency-red-btn:hover:not(:disabled) {
+        filter: brightness(1.15);
+        box-shadow: 0 0 0 6px #241315, 0 14px 34px rgba(255, 0, 0, 0.6), inset 0 3px 6px rgba(255,255,255,0.8), inset 0 -5px 12px rgba(0,0,0,0.8) !important;
+      }
+      .emergency-red-btn:active:not(:disabled) {
+        transform: translateY(4px) scale(0.96);
+        box-shadow: 0 0 0 6px #241315, 0 4px 12px rgba(255, 0, 0, 0.4), inset 0 4px 10px rgba(0,0,0,0.9) !important;
+      }
+      .emergency-red-btn:disabled {
+        background: radial-gradient(circle at 50% 50%, #442a2b, #221415) !important;
+        border-color: #553335 !important;
+        color: #775557 !important;
+        box-shadow: 0 0 0 5px #150d0e, inset 0 2px 4px rgba(0,0,0,0.8) !important;
+        filter: none !important;
+        cursor: not-allowed;
+      }
+
       .tactile-bit-btn { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #354640; border-radius: 11px; font-weight: 950; transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease; touch-action: manipulation; user-select: none; }
       .tactile-bit-btn:active { transform: scale(.94); }
       .tactile-bit-1 { color: #071008 !important; background: linear-gradient(180deg, #d3ff87, #9be83b) !important; border-color: #d7ff9a !important; box-shadow: 0 0 18px rgba(182,255,85,.28), inset 0 1px rgba(255,255,255,.8), 0 3px 0 #426e1d !important; }
@@ -105,6 +135,9 @@ export default function BombWorkshopGame() {
   const [userBitsMatrix, setUserBitsMatrix] = useState<number[][]>([[0, 0, 0, 0, 0, 0, 0, 0]]);
   const [submittedWordResult, setSubmittedWordResult] = useState("");
 
+  // บันทึกตำแหน่งที่เคยกดเข้าไปดูแล้ว
+  const [visitedIndices, setVisitedIndices] = useState<number[]>([0]);
+
   const currentDecodedWord = useMemo(() => decodeBitsToWord(userBitsMatrix), [userBitsMatrix]);
 
   const triggerHaptic = (ms: number = 35) => {
@@ -113,7 +146,6 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // รีเซ็ตเกมเพื่อกลับหน้าเมนูหลัก
   const handleResetToMenu = () => {
     triggerHaptic(30);
     setRole("MENU");
@@ -125,6 +157,7 @@ export default function BombWorkshopGame() {
     setKeyBitsMatrix([]);
     setUserBitsMatrix([[0, 0, 0, 0, 0, 0, 0, 0]]);
     setActiveCharIndex(0);
+    setVisitedIndices([0]);
     setSubmittedWordResult("");
     hasTriggeredExplodeRef.current = false;
     serverStartTimeRef.current = null;
@@ -197,7 +230,6 @@ export default function BombWorkshopGame() {
     }).catch(() => {});
   }, [roomId, userBitsMatrix]);
 
-  // 1. ผู้ตั้งรหัสสร้างห้อง
   const handleSaveAndCreateRoom = async () => {
     const t = (targetWord || "CAT").trim().toUpperCase();
     const k = (secretKey || "BAT").trim().toUpperCase();
@@ -241,7 +273,6 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // 2. ผู้กู้ระเบิดจอยเข้าห้อง
   const handleJoinRoom = async () => {
     const code = inputRoomId.replace(/[^A-Za-z0-9]/g, "").trim().toUpperCase();
     if (!code || code.length !== 4) return alert("กรุณาใส่รหัสห้อง 4 หลัก");
@@ -259,7 +290,6 @@ export default function BombWorkshopGame() {
     }
   };
 
-  // Countdown Timer
   useEffect(() => {
     if (gameStatus !== "PLAYING") return;
     const timer = setInterval(() => {
@@ -273,7 +303,6 @@ export default function BombWorkshopGame() {
     return () => clearInterval(timer);
   }, [gameStatus, triggerExplode]);
 
-  // สั่งเริ่มเกม
   const handleArmBomb = async () => {
     if (!defuserJoined) return alert("รอให้ผู้กู้ระเบิดเข้าห้องก่อนครับ");
 
@@ -298,6 +327,12 @@ export default function BombWorkshopGame() {
   const handleExecuteDefuse = async () => {
     if (gameStatus !== "PLAYING") return;
 
+    // เช็คว่าดูครบทุกตำแหน่งแล้วหรือยัง
+    if (visitedIndices.length < userBitsMatrix.length) {
+      alert("⚠️ กรุณากดตรวจทานให้ครบทุกตำแหน่งก่อนยืนยัน!");
+      return;
+    }
+
     const finalAnswer = decodeBitsToWord(userBitsMatrix).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     const expectedWord = preloadedTargetWordRef.current.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     setSubmittedWordResult(finalAnswer);
@@ -321,11 +356,10 @@ export default function BombWorkshopGame() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // คำนวณเวลาที่ใช้ไป
   const timeUsedSeconds = Math.max(0, (serverTimeLimitRef.current || 120) - timeLeft);
 
   // =========================================================================
-  // MODAL หน้าต่างสรุปผลการแข่งขัน (แสดงเมื่อชนะ หรือ แพ้)
+  // MODAL หน้าต่างสรุปผลการแข่งขัน
   // =========================================================================
   const renderResultModal = () => {
     if (gameStatus !== "DEFUSED" && gameStatus !== "EXPLODED") return null;
@@ -622,6 +656,8 @@ export default function BombWorkshopGame() {
   const currentKeyBits = keyBitsMatrix[activeCharIndex] || [0, 0, 0, 0, 0, 0, 0, 0];
   const currentUserBits = userBitsMatrix[activeCharIndex] || [0, 0, 0, 0, 0, 0, 0, 0];
 
+  const hasVisitedAll = visitedIndices.length >= totalChars;
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-6 relative">
       <TacticalStyles />
@@ -693,8 +729,8 @@ export default function BombWorkshopGame() {
                         key={idx}
                         className={`px-1 rounded ${
                           idx === activeCharIndex
-                            ? "text-amber-400 bg-amber-500/20 border-b-2 border-amber-400 animate-pulse scale-110"
-                            : "text-emerald-400"
+                            ? "text-emerald-300 bg-emerald-500/20 border-b-2 border-emerald-400 animate-pulse scale-110"
+                            : "text-slate-400"
                         }`}
                       >
                         {ch}
@@ -743,7 +779,7 @@ export default function BombWorkshopGame() {
                 </div>
 
                 <div className="text-center py-0.5">
-                  <span className="text-xs font-bold text-amber-400 animate-pulse">
+                  <span className="text-xs font-bold text-emerald-400 animate-pulse">
                     {`↓ กำลังแก้ไขบิตตัวที่ ${activeCharIndex + 1} / ${totalChars} (0 ⇄ 1) ↓`}
                   </span>
                 </div>
@@ -778,47 +814,75 @@ export default function BombWorkshopGame() {
                 </span>
               </div>
 
-              {/* แถบเลือกตำแหน่งตัวอักษร */}
+              {/* 1. แถบเลือกตรวจทานตำแหน่ง (สีเขียวนีออนสำหรับตัวที่กำลังทำ) */}
               <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/40 p-3 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-300">สลับตำแหน่งเพื่อตรวจทาน:</span>
-                  <span className="bg-amber-500 text-black text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow">
+                  <span className="bg-[#b6ff55] text-black text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-[0_0_12px_#b6ff55]">
                     {`ตำแหน่งที่ ${activeCharIndex + 1} / ${totalChars}`}
                   </span>
                 </div>
 
                 <div className="flex gap-2">
-                  {userBitsMatrix.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => { triggerHaptic(20); setActiveCharIndex(idx); }}
-                      className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer flex items-center gap-1.5 ${
-                        activeCharIndex === idx
-                          ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_14px_#f59e0b]"
-                          : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${activeCharIndex === idx ? "bg-black animate-ping" : "bg-slate-500"}`} />
-                      <span>{`ตัวที่ ${idx + 1}`}</span>
-                    </button>
-                  ))}
+                  {userBitsMatrix.map((_, idx) => {
+                    const isActive = activeCharIndex === idx;
+                    const isVisited = visitedIndices.includes(idx);
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          triggerHaptic(20);
+                          setActiveCharIndex(idx);
+                          if (!visitedIndices.includes(idx)) {
+                            setVisitedIndices((prev) => [...prev, idx]);
+                          }
+                        }}
+                        className={`tactile-btn px-4 py-2 text-sm font-mono cursor-pointer flex items-center gap-1.5 transition-all duration-200 ${
+                          isActive
+                            ? "bg-[#b6ff55] !text-black !border-[#d9ff8d] shadow-[0_0_16px_#b6ff55] scale-105"
+                            : isVisited
+                            ? "bg-emerald-950/60 text-emerald-300 border-emerald-600/60 hover:bg-emerald-900/80"
+                            : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${isActive ? "bg-black animate-ping" : isVisited ? "bg-emerald-400" : "bg-slate-500"}`} />
+                        <span>{`ตัวที่ ${idx + 1}`}</span>
+                        {isVisited && !isActive && <span className="text-[10px] text-emerald-400">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+
+              {/* แจ้งเตือนหากยังตรวจไม่ครบ */}
+              {!hasVisitedAll && (
+                <div className="text-center mt-2">
+                  <span className="text-[11px] font-bold text-amber-400/90 animate-pulse">
+                    ⚠️ กรุณากดดูและตรวจทานให้ครบทุกตำแหน่งก่อน ({visitedIndices.length}/{totalChars}) จึงจะปลดล็อกปุ่มยืนยัน
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* ปุ่มตัดวงจรปลดชนวน */}
-            <div className="pt-2">
+            {/* 2. ส่วนส่งคำตอบ: แยกออกมาด้านล่างอย่างชัดเจน + ปุ่มวงกลมสีแดงสไตล์ Detonator */}
+            <div className="pt-6 pb-4 flex flex-col items-center justify-center">
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">
+                DETONATION / DEFUSE TRIGGER
+              </span>
+
               <button
                 onClick={handleExecuteDefuse}
-                disabled={gameStatus !== "PLAYING"}
-                className={`tactile-btn w-full h-18 sm:h-22 text-xl sm:text-2xl tracking-widest uppercase cursor-pointer ${
-                  gameStatus === "PLAYING"
-                    ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-lg"
-                    : "bg-slate-800 text-slate-600 cursor-not-allowed border-slate-700"
-                }`}
+                disabled={gameStatus !== "PLAYING" || !hasVisitedAll}
+                className="emergency-red-btn flex flex-col items-center justify-center cursor-pointer"
+                title={!hasVisitedAll ? "กรุณากดตรวจทานให้ครบทุกตัวก่อนส่ง" : "กดยืนยันเพื่อส่งคำตอบ"}
               >
-                ✂️ CUT CIRCUIT / UNLOCK VAULT (ส่งคำตอบถอดรหัส)
+                <span className="leading-tight">ยืนยัน</span>
               </button>
+
+              <span className="text-[11px] font-bold text-slate-500 mt-3 text-center">
+                {hasVisitedAll ? "แตะเพื่อตัดวงจรและส่งคำตอบ" : "ปุ่มถูกล็อกไว้จนกว่าจะตรวจทานครบทุกตำแหน่ง"}
+              </span>
             </div>
           </div>
         )}
